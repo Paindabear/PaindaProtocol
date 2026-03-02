@@ -2,6 +2,9 @@
   <h1>🐼 PaindaProtocol (PP)</h1>
   <p><strong>Binary Speed. Typed Power. Built for Performance.</strong></p>
   <p>The high-performance, protocol-first backbone for real-time applications.</p>
+  <p>
+    <a href="https://tools.painda.tools/docs"><strong>📖 Read the Documentation</strong></a>
+  </p>
 </div>
 
 <br />
@@ -25,9 +28,11 @@ This repository contains the core protocol and its official modules:
 | Package | Description | Status |
 |---------|-------------|--------|
 | **[`@painda/core`](./packages/core)** | The binary standard, `PPServer`, `PPClient`, and Schema Registry. (Required) | ✅ Alpha |
-| **[`@painda/gaming`](./packages/gaming)** | **The Delta Engine.** Synchronizes complex multiplayer states by transmitting only binary patches instead of entire JSON objects. | ✅ Alpha |
-| **`@painda/chat`** | Rooms, direct messages, broadcating. | 🚧 Coming Soon |
-| **`@painda/video`**| Low-latency RTC Signaling. | 🚧 Coming Soon |
+| **[`@painda/gaming`](./packages/gaming)** | **The Delta Engine.** Synchronizes multiplayer states with binary patches. | ✅ Alpha |
+| **[`@painda/chat`](./packages/chat)** | Rooms, direct messages, broadcating. | ✅ Alpha |
+| **[`@painda/video`](./packages/video)**| Low-latency WebRTC Signaling. | ✅ Alpha |
+
+For full details on using these packages, visit the [PaindaProtocol Documentation](https://tools.painda.tools/docs).
 
 ---
 

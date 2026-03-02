@@ -1,0 +1,32 @@
+# Dependencies & build
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+
+# Only packages go in this repo – ignore apps
+apps/
+
+# Internal concept doc (not for repo)
+CONCEPT.md
+
+# Full monorepo root package (local only)
+package.json.full
+
+# Monorepo / deployment (not part of packages repo)
+package-lock.json
+ecosystem.config.js
+
+# Env & logs
+.env
+.env.*
+*.log
+npm-debug.log*
+
+# IDE / OS
+.cursor/
+.DS_Store
+Thumbs.db
+
+# Bench competitors (optional; uncomment if you want to exclude)
+# apps/

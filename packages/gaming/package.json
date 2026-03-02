@@ -1,0 +1,28 @@
+{
+    "name": "@painda/gaming",
+    "version": "0.0.1",
+    "description": "The Delta Engine for state-syncing in PaindaProtocol",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch"
+    },
+    "dependencies": {
+        "@painda/core": "file:../core"
+    },
+    "devDependencies": {
+        "typescript": "^5"
+    },
+    "license": "MIT"
+}

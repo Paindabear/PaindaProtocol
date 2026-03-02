@@ -1,0 +1,10 @@
+{
+  "name": "painda-protocol-packages",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build --workspace=@painda/core && npm run build --workspace=@painda/gaming",
+    "build:core": "npm run build --workspace=@painda/core",
+    "build:gaming": "npm run build --workspace=@painda/gaming"
+  }
+}

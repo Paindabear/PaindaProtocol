@@ -84,7 +84,7 @@ export class PPClient {
   }
 
   send<T = unknown>(message: PPMessage<T>): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== 1) { // 1 = WebSocket.OPEN
       throw new Error("PPClient is not connected");
     }
     const frame = encodeFrame(this.mode, message as PPMessage, this.registry);

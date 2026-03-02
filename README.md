@@ -43,15 +43,15 @@
 
 ## 📦 Packages
 
-| Package | Description | Status |
-|---------|-------------|--------|
-| **[`@painda/core`](./packages/core)** | Binary engine, Server, Client, Namespaces, Middleware, Plugins, Rooms, Presence | ✅ Beta |
-| **[`@painda/gaming`](./packages/gaming)** | Delta Engine — state sync with binary diffs | ✅ Beta |
-| **[`@painda/chat`](./packages/chat)** | Rooms, direct messages, broadcasting | ✅ Beta |
-| **[`@painda/video`](./packages/video)** | WebRTC signaling for low-latency P2P calls | ✅ Beta |
-| **[`@painda/auth`](./packages/auth)** | Token-based authentication middleware | ✅ Beta |
-| **[`@painda/persistence`](./packages/persistence)** | Auto-persist messages to your DB with metrics | ✅ Beta |
-| **[`@painda/testing`](./packages/testing)** | Test utilities for PP apps | ✅ Beta |
+| Package | Description | Version |
+|---------|-------------|---------|
+| [`@painda/core`](https://www.npmjs.com/package/@painda/core) | Binary engine, Server, Client, Namespaces, Middleware, Plugins, Rooms, Presence | [![npm](https://img.shields.io/npm/v/@painda/core)](https://www.npmjs.com/package/@painda/core) |
+| [`@painda/gaming`](https://www.npmjs.com/package/@painda/gaming) | Delta Engine — state sync with binary diffs | [![npm](https://img.shields.io/npm/v/@painda/gaming)](https://www.npmjs.com/package/@painda/gaming) |
+| [`@painda/chat`](https://www.npmjs.com/package/@painda/chat) | Rooms, direct messages, broadcasting | [![npm](https://img.shields.io/npm/v/@painda/chat)](https://www.npmjs.com/package/@painda/chat) |
+| [`@painda/video`](https://www.npmjs.com/package/@painda/video) | WebRTC signaling for low-latency P2P calls | [![npm](https://img.shields.io/npm/v/@painda/video)](https://www.npmjs.com/package/@painda/video) |
+| [`@painda/auth`](https://www.npmjs.com/package/@painda/auth) | Token-based authentication middleware | [![npm](https://img.shields.io/npm/v/@painda/auth)](https://www.npmjs.com/package/@painda/auth) |
+| [`@painda/persistence`](https://www.npmjs.com/package/@painda/persistence) | Auto-persist messages to your DB with metrics | [![npm](https://img.shields.io/npm/v/@painda/persistence)](https://www.npmjs.com/package/@painda/persistence) |
+| [`@painda/testing`](https://www.npmjs.com/package/@painda/testing) | Test utilities for PP apps | [![npm](https://img.shields.io/npm/v/@painda/testing)](https://www.npmjs.com/package/@painda/testing) |
 
 ---
 

@@ -28,8 +28,8 @@ export function diff(oldState: any, newState: any): any {
         }
         let changed = false;
         for (let i = 0; i < oldState.length; i++) {
-            // We do deep diffs on arrays too? Array diffing is complex, let's just replace if any item differs.
-            if (JSON.stringify(oldState[i]) !== JSON.stringify(newState[i])) { // Quick hack for MVP array check
+            // Replace JSON.stringify bottleneck with a fast, recursive check.
+            if (diff(oldState[i], newState[i]) !== undefined) {
                 changed = true;
                 break;
             }

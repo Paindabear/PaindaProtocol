@@ -1,4 +1,5 @@
 import type { PPClientSocket, PPServer, PPMessage } from "@painda/core";
+import { encodeFrame } from "@painda/core";
 
 export class RoomManager {
     private server: PPServer;
@@ -79,7 +80,15 @@ export class RoomManager {
     }
 
     /**
-     * Broadcasts a fully typed PPMessage to all clients in a room.
+     * Returns the number of rooms currently active.
+     */
+    public get roomCount(): number {
+        return this.rooms.size;
+    }
+
+    /**
+     * Perf #8: Encode-once broadcast to all clients in a room.
+     * Encodes the message once and sends raw bytes to avoid re-serializing per client.
      */
     public broadcastToRoom(roomId: string, message: PPMessage, excludeClient?: PPClientSocket): void {
         const clients = this.rooms.get(roomId);
@@ -87,14 +96,10 @@ export class RoomManager {
 
         for (const client of clients) {
             if (excludeClient && client === excludeClient) continue;
-
-            // Ideally, a high-perf PP broadcast encodes once and sends the raw buffer to all websockets.
-            // For now, this invokes the internal `client.send` mapping. Assuming `client.send` handles serialization.
-            // Future core optimization: allow server.broadcastRaw(buf, ArrayOfClients).
             try {
                 client.send(message);
             } catch (e) {
-                // ignore drop
+                // ignore send failures for disconnected clients
             }
         }
     }

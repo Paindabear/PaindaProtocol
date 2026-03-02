@@ -95,3 +95,66 @@ export function structSerializer<T extends Record<string, number>>(
     },
   };
 }
+
+/**
+ * #6: Mixed binary serializer.
+ * Encodes a payload that has both JSON metadata and a binary attachment.
+ * Wire format: [4 bytes: JSON length (uint32)] [JSON bytes] [binary bytes]
+ *
+ * Usage:
+ *   interface Upload { name: string; mime: string; data: Uint8Array }
+ *   const schema = mixedSerializer<Upload>(10, 'data');
+ *   // 'data' is the binary field; everything else is JSON-serialized.
+ */
+export function mixedSerializer<T extends Record<string, unknown>>(
+  id: number,
+  binaryField: keyof T & string,
+): PPSchema<T> {
+  return {
+    id,
+    encode: (data: T): Uint8Array => {
+      // Extract binary field
+      const binaryData = data[binaryField];
+      const binary = binaryData instanceof Uint8Array
+        ? binaryData
+        : textEncoder.encode(String(binaryData));
+
+      // JSON-encode everything else
+      const jsonPart: Record<string, unknown> = {};
+      for (const key of Object.keys(data)) {
+        if (key !== binaryField) {
+          jsonPart[key] = data[key];
+        }
+      }
+      const jsonBytes = textEncoder.encode(JSON.stringify(jsonPart));
+
+      // Wire: [uint32 jsonLength] [jsonBytes] [binaryBytes]
+      const total = 4 + jsonBytes.byteLength + binary.byteLength;
+      const buf = new ArrayBuffer(total);
+      const view = new DataView(buf);
+      view.setUint32(0, jsonBytes.byteLength);
+
+      const out = new Uint8Array(buf);
+      out.set(jsonBytes, 4);
+      out.set(binary, 4 + jsonBytes.byteLength);
+
+      return out;
+    },
+    decode: (buf: Uint8Array): T => {
+      const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const jsonLength = view.getUint32(0);
+
+      const jsonBytes = new Uint8Array(buf.buffer, buf.byteOffset + 4, jsonLength);
+      const jsonPart = JSON.parse(textDecoder.decode(jsonBytes)) as Record<string, unknown>;
+
+      const binaryBytes = new Uint8Array(
+        buf.buffer,
+        buf.byteOffset + 4 + jsonLength,
+        buf.byteLength - 4 - jsonLength,
+      );
+
+      return { ...jsonPart, [binaryField]: binaryBytes } as T;
+    },
+  };
+}
+

@@ -1,7 +1,7 @@
 {
-    "name": "@painda/gaming",
+    "name": "@painda/auth",
     "version": "0.1.1",
-    "description": "The Delta Engine for state-syncing in PaindaProtocol",
+    "description": "PaindaProtocol authentication middleware and JWT validators",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -16,16 +16,16 @@
     ],
     "scripts": {
         "build": "tsc",
-        "dev": "tsc --watch"
+        "dev": "tsc --watch",
+        "clean": "rm -rf dist"
     },
     "keywords": [
         "websocket",
-        "gaming",
-        "delta-sync",
-        "state-sync",
-        "binary",
+        "auth",
+        "jwt",
+        "middleware",
         "painda",
-        "realtime"
+        "authentication"
     ],
     "author": "Painda",
     "homepage": "https://pp.painda.tools",
@@ -38,7 +38,8 @@
     },
     "devDependencies": {
         "@painda/core": "^0.1.0",
-        "typescript": "^5"
+        "typescript": "^5.0.0",
+        "@types/node": "^20.0.0"
     },
     "license": "MIT"
 }

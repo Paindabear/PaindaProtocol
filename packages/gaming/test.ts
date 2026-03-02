@@ -1,4 +1,4 @@
-import { StateManager, patch } from "./src/index.js";
+import { StateManager, patch, PP_DELETED, isDeleted } from "./src/index.js";
 
 function assertDeepEqual(a: any, b: any) {
     if (JSON.stringify(a) !== JSON.stringify(b)) {
@@ -22,7 +22,7 @@ const serverState = new StateManager<GameState>({
 });
 
 // Client initial state
-let clientState = JSON.parse(JSON.stringify(serverState.getState()));
+let clientState = structuredClone(serverState.getState());
 
 // 2. Tick 1: Update positions
 serverState.update((state) => {
@@ -46,7 +46,21 @@ serverState.update((state) => {
 
 const delta2 = serverState.getDelta();
 console.log("Delta 2:", JSON.stringify(delta2));
-assertDeepEqual(delta2, { players: { user2: "__DELETED__", user3: { x: 0, y: 0, hp: 50 } } });
+
+// Verify deletion uses PP_DELETED sentinel object, not string
+const delta2Players = delta2.players;
+if (!isDeleted(delta2Players.user2)) {
+    throw new Error("Expected PP_DELETED sentinel for deleted player, got: " + JSON.stringify(delta2Players.user2));
+}
+console.log("PP_DELETED sentinel verified ✓");
+
+// Verify the sentinel serializes correctly for wire transmission
+const serialized = JSON.stringify(delta2);
+const deserialized = JSON.parse(serialized);
+// After JSON round-trip, the sentinel becomes { __pp_deleted: true }
+if (deserialized.players.user2.__pp_deleted !== true) {
+    throw new Error("PP_DELETED sentinel did not survive JSON round-trip");
+}
 
 clientState = patch(clientState, delta2);
 assertDeepEqual(clientState, serverState.getState());
@@ -63,4 +77,11 @@ assertDeepEqual(delta3, { players: { user1: { hp: 95 } } });
 clientState = patch(clientState, delta3);
 assertDeepEqual(clientState, serverState.getState());
 
-console.log("All tests passed!");
+// 5. Tick 4: No changes — delta should be undefined
+const delta4 = serverState.getDelta();
+if (delta4 !== undefined) {
+    throw new Error("Expected undefined delta for unchanged state, got: " + JSON.stringify(delta4));
+}
+console.log("No-change delta verified ✓");
+
+console.log("All tests passed! ✅");

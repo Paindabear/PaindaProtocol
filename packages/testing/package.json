@@ -1,7 +1,7 @@
 {
-    "name": "@painda/gaming",
+    "name": "@painda/testing",
     "version": "0.1.1",
-    "description": "The Delta Engine for state-syncing in PaindaProtocol",
+    "description": "Test utilities for PaindaProtocol",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -15,17 +15,13 @@
         "dist"
     ],
     "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch"
+        "build": "tsc"
     },
     "keywords": [
         "websocket",
-        "gaming",
-        "delta-sync",
-        "state-sync",
-        "binary",
-        "painda",
-        "realtime"
+        "testing",
+        "test-utils",
+        "painda"
     ],
     "author": "Painda",
     "homepage": "https://pp.painda.tools",
@@ -38,7 +34,7 @@
     },
     "devDependencies": {
         "@painda/core": "^0.1.0",
-        "typescript": "^5"
+        "typescript": "^5.4.0"
     },
     "license": "MIT"
 }

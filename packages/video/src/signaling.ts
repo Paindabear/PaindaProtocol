@@ -78,17 +78,23 @@ export class SignalingServer {
     }
 
     private handleDisconnect(client: PPClientSocket): void {
+        // Collect affected rooms first to avoid mutating `this.rooms` during iteration
+        const affectedRooms: string[] = [];
         for (const [roomId, clients] of this.rooms.entries()) {
             if (clients.has(client)) {
-                this.leave(client, roomId);
-
-                // Notify remaining peers that this user vanished
-                const leaveMsg: PPMessage<RTCMessage> = {
-                    type: "rtc-signal",
-                    payload: { type: "leave", roomId, senderId: client.id }
-                };
-                this.broadcastToRoom(roomId, leaveMsg);
+                affectedRooms.push(roomId);
             }
+        }
+
+        for (const roomId of affectedRooms) {
+            this.leave(client, roomId);
+
+            // Notify remaining peers that this user vanished
+            const leaveMsg: PPMessage<RTCMessage> = {
+                type: "rtc-signal",
+                payload: { type: "leave", roomId, senderId: client.id }
+            };
+            this.broadcastToRoom(roomId, leaveMsg);
         }
     }
 

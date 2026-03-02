@@ -1,8 +1,25 @@
 /**
+ * Sentinel object for marking deleted keys in diffs.
+ * Using a unique object prevents collision with real payload data.
+ */
+export const PP_DELETED = Object.freeze({ __pp_deleted: true } as const);
+export type PPDeletedMarker = typeof PP_DELETED;
+
+/**
+ * Type guard to check if a value is the PP deletion sentinel.
+ */
+export function isDeleted(value: unknown): value is PPDeletedMarker {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        (value as Record<string, unknown>).__pp_deleted === true
+    );
+}
+
+/**
  * Compares two state objects and returns an object containing only the differences.
  * This is a deep recursive comparison.
- * If a value is deleted, it returns `undefined` for that key, which allows the patch
- * algorithm to know it should remove that key.
+ * If a value is deleted, it returns the PP_DELETED sentinel for that key.
  * 
  * @param oldState The previous state
  * @param newState The current state
@@ -18,17 +35,14 @@ export function diff(oldState: any, newState: any): any {
         return newState;
     }
 
-    // Handle Arrays differently: for now, we just replace them entirely if they differ.
-    // Advanced delta engines can do array operational diffs, but simple replacement is safer for MVPs.
+    // Handle Arrays: replace entirely if they differ.
+    // TODO: Phase 2+ — implement array splice operations for large arrays.
     if (Array.isArray(oldState) || Array.isArray(newState)) {
-        // Basic array diff: if length or contents differ, send the whole array.
-        // In a real high-perf engine, we'd emit array splice commands, but for now simple replacement.
         if (!Array.isArray(oldState) || !Array.isArray(newState) || oldState.length !== newState.length) {
             return newState;
         }
         let changed = false;
         for (let i = 0; i < oldState.length; i++) {
-            // Replace JSON.stringify bottleneck with a fast, recursive check.
             if (diff(oldState[i], newState[i]) !== undefined) {
                 changed = true;
                 break;
@@ -44,8 +58,8 @@ export function diff(oldState: any, newState: any): any {
 
     for (const key of allKeys) {
         if (!(key in newState)) {
-            // Key was deleted
-            delta[key] = "__DELETED__"; // Use a sentinel value for deletion since undefined keys might be omitted by JSON.stringify
+            // Key was deleted — use sentinel object to avoid string collision
+            delta[key] = PP_DELETED;
             hasChanges = true;
         } else if (!(key in oldState)) {
             // Key was added

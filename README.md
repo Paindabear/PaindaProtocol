@@ -1,134 +1,277 @@
 <div align="center">
   <h1>🐼 PaindaProtocol (PP)</h1>
-  <p><strong>Binary Speed. Typed Power. Built for Performance.</strong></p>
+  <p><strong>Binary Speed. Typed Power. Plugin Ecosystem.</strong></p>
   <p>The high-performance, protocol-first backbone for real-time applications.</p>
   <p>
-    <a href="https://tools.painda.tools/docs"><strong>📖 Read the Documentation</strong></a>
+    <a href="https://pp.painda.tools/docs"><strong>📖 Documentation</strong></a> ·
+    <a href="https://pp.painda.tools/demo"><strong>🎮 Live Demo</strong></a> ·
+    <a href="https://pp.painda.tools/test"><strong>🧪 Benchmarks</strong></a>
   </p>
 </div>
 
 <br />
 
-**PaindaProtocol (PP)** is a modern alternative to legacy real-time tools like Socket.io. It unites the blazing speed of raw WebSockets with the incredible developer experience (DX) of strongly-typed JavaScript frameworks. PP relies on a highly efficient, *zero-copy binary frame architecture* instead of CPU-heavy JSON stringification.
+**PaindaProtocol (PP)** is a modern, production-ready alternative to Socket.io. It combines the blazing speed of raw WebSockets with a zero-copy binary frame architecture — plus every feature you know from Socket.io, and killer features like **Typed Rooms with Delta Sync**, **Presence**, and a **Plugin System** that Socket.io doesn't have.
 
 ---
 
 ## 🔥 Features
-* **Zero-Copy Binary Framing:** Native `DataView` allocations instead of massive JSON string garbage collection.
-* **100% Type-Safe Contracts:** Schemas ensure that the data flying over the wire is strictly typed in TypeScript.
-* **Massive Throughput:** Hits over 30,000 msg/s on standard web connections vs Socket.io's ~100 msg/s.
-* **Plugin / Module Architecture:** Start with `@painda/core`, add `@painda/gaming` for Multiplayer state-syncing, or `@painda/chat` for messaging.
-* **Socket.io-like DX:** You get the speed of `uWebSockets` combined with the simple APIs of `Socket.io` (e.g., `client.on('message')`).
+
+| Feature | Description |
+|---------|-------------|
+| 🔩 **Zero-Copy Binary Framing** | Native `DataView` encoding — no JSON overhead on the wire |
+| 📡 **Namespaces** | `server.of("/admin")` — multiplex over a single WebSocket |
+| ⚡ **Middleware Pipeline** | `server.use()` chains for auth, validation, logging |
+| 🤝 **Acknowledgements** | `client.send(msg, callback)` — request-response with timeouts |
+| 🔄 **Connection Recovery** | Missed messages replayed + rooms restored after reconnect |
+| 📈 **Horizontal Scaling** | `PPAdapter` interface for Redis/Postgres multi-instance |
+| 🧩 **Plugin System** | `server.register(plugin)` — extend core with lifecycle hooks |
+| 🏠 **Typed Rooms** | `server.room<T>(id, state)` — delta-synced rooms at 60 FPS |
+| 👥 **Presence** | `server.presence.track(socket, data)` — who's online |
+| 🏷️ **Connection Tagging** | `client.setTag("role", "admin")` → `broadcastToTag()` |
+| 🔑 **Token Refresh** | `getToken()` callback on every reconnect |
+| 🎮 **Delta Engine** | State sync via diffs — 100x smaller payloads at 60 FPS |
+| 🔇 **Volatile Messages** | Drop instead of queue for ephemeral data |
+| 👂 **Catch-All Listeners** | `onAny()` for debugging and metrics |
+| �️ **Deflate Compression** | Flag-based auto-compression on the wire |
+| 📦 **Mixed Binary** | JSON + binary attachments in a single message |
+| 🌐 **HTTP Fallback** | Long-polling transport for restrictive networks |
+| ❤️ **Heartbeat** | Ping/pong with zombie connection cleanup |
+| 🧪 **Testing Utils** | `createTestEnv()`, `waitForMessage()`, `collectMessages()` |
 
 ---
 
 ## 📦 Packages
-This repository contains the core protocol and its official modules:
 
 | Package | Description | Status |
 |---------|-------------|--------|
-| **[`@painda/core`](./packages/core)** | The binary standard, `PPServer`, `PPClient`, and Schema Registry. (Required) | ✅ Alpha |
-| **[`@painda/gaming`](./packages/gaming)** | **The Delta Engine.** Synchronizes multiplayer states with binary patches. | ✅ Alpha |
-| **[`@painda/chat`](./packages/chat)** | Rooms, direct messages, broadcating. | ✅ Alpha |
-| **[`@painda/video`](./packages/video)**| Low-latency WebRTC Signaling. | ✅ Alpha |
-
-For full details on using these packages, visit the [PaindaProtocol Documentation](https://tools.painda.tools/docs).
+| **[`@painda/core`](./packages/core)** | Binary engine, Server, Client, Namespaces, Middleware, Plugins, Rooms, Presence | ✅ Beta |
+| **[`@painda/gaming`](./packages/gaming)** | Delta Engine — state sync with binary diffs | ✅ Beta |
+| **[`@painda/chat`](./packages/chat)** | Rooms, direct messages, broadcasting | ✅ Beta |
+| **[`@painda/video`](./packages/video)** | WebRTC signaling for low-latency P2P calls | ✅ Beta |
+| **[`@painda/auth`](./packages/auth)** | Token-based authentication middleware | ✅ Beta |
+| **[`@painda/persistence`](./packages/persistence)** | Auto-persist messages to your DB with metrics | ✅ Beta |
+| **[`@painda/testing`](./packages/testing)** | Test utilities for PP apps | ✅ Beta |
 
 ---
 
 ## 🚀 Quick Start
 
 ### 1. Installation
-In your project, install the core module:
 ```bash
 npm install @painda/core
 ```
 
-### 2. Define a Schema 
-Schemas turn slow JSON into lightning-fast binary.
+### 2. Server with Plugins, Rooms & Presence
 ```typescript
-import { PPSchemaRegistry } from "@painda/core";
+import { PPServer, type PPPlugin } from "@painda/core";
 
-export const registry = new PPSchemaRegistry();
-registry.register("player-move", {
-  id: 1,
-  encode: (payload) => {
-    const buf = new Uint8Array(8);
-    new DataView(buf.buffer).setFloat64(0, payload.x, true);
-    return buf;
-  },
-  decode: (buf) => {
-    const x = new DataView(buf.buffer).getFloat64(0, true);
-    return { x };
-  }
+const server = new PPServer({
+  port: 3000,
+  recovery: true,
+  presence: { syncInterval: 1000 },
 });
-```
 
-### 3. Start the Server
-```typescript
-import { PPServer } from "@painda/core";
-import { registry } from "./schemas";
+// Plugin system — extend core
+const rateLimiter: PPPlugin<{ maxPerSec: number }> = {
+  name: "rate-limiter",
+  version: "1.0.0",
+  install(ctx, options) {
+    const counters = new Map<string, number>();
+    return {
+      onMessage(socket, msg) {
+        const count = (counters.get(socket.id) ?? 0) + 1;
+        counters.set(socket.id, count);
+        if (count > (options?.maxPerSec ?? 100)) return false; // Block
+      },
+    };
+  },
+};
+server.register(rateLimiter, { maxPerSec: 50 });
 
-const server = new PPServer({ port: 3000, registry });
+// Typed rooms — auto delta sync at 60 FPS
+interface GameState { phase: string; score: Record<string, number> }
+const lobby = server.room<GameState>("lobby-1", {
+  phase: "waiting",
+  score: {},
+});
 
 server.on("connection", (client) => {
-  client.on("message", (msg) => {
-    if (msg.type === "player-move") {
-       console.log("Player moved to:", msg.payload.x);
-       client.send(msg); // Echo back in pure binary
-    }
+  // Tag for grouping
+  client.setTag("role", "player");
+
+  // Presence tracking
+  server.presence.track(client, { name: "Player", status: "online" });
+
+  // Join typed room — full state auto-synced
+  lobby.join(client);
+
+  // Update room state — delta auto-broadcast
+  lobby.update(s => {
+    s.score[client.id] = 0;
   });
 });
 ```
 
-### 4. Connect the Client
+### 3. Client with Token Refresh & Room Sync
 ```typescript
 import { PPClient } from "@painda/core";
-import { registry } from "./schemas";
 
-const client = new PPClient({ url: "ws://localhost:3000", registry });
-
-client.on("open", () => {
-    client.send({ type: "player-move", payload: { x: 50.5 } });
+const client = new PPClient({
+  url: "ws://localhost:3000",
+  reconnect: true,
+  ackTimeout: 5000,
+  getToken: async () => {
+    // Called on every reconnect — fresh token each time
+    return await refreshAuthToken();
+  },
 });
+
+// Typed room state (full sync on join)
+client.on("roomState", ({ room, state }) => {
+  console.log(`Room ${room}:`, state);
+});
+
+// Typed room deltas (60 FPS updates)
+client.on("roomDelta", ({ room, delta }) => {
+  applyDelta(localState, delta);
+});
+
+// Presence
+client.on("presence", ({ presences }) => {
+  updateOnlineList(presences);
+});
+
+// Ack callback
+client.send(
+  { type: "save", payload: data },
+  (err, response) => {
+    if (err) console.error("Timeout");
+    else console.log("Saved:", response);
+  }
+);
 ```
 
 ---
 
-## 📈 Benchmarks
+## 🧩 Plugin System
 
-PaindaProtocol was built out of frustration with Socket.io's overhead in gaming and heavy real-time environments. Here are live results over a standard internet connection:
+Plugins get full access to the server lifecycle and can extend core functionality. The community can build custom extensions without forking.
+
+```typescript
+const analytics: PPPlugin = {
+  name: "analytics",
+  version: "1.0.0",
+  install(ctx) {
+    // Full access to server internals
+    ctx.use((socket, next) => {
+      ctx.log("Client connected:", socket.id);
+      next();
+    });
+
+    // Expose public API for other plugins
+    ctx.expose({
+      getStats: () => ({ clients: ctx.getClientCount() }),
+    });
+
+    return {
+      onConnect: (socket) => trackConnection(socket),
+      onDisconnect: (socket) => trackDisconnection(socket),
+      onMessage: (socket, msg) => trackMessage(msg.type),
+      onShutdown: () => flushMetrics(),
+    };
+  },
+};
+
+// Use in another plugin
+const dashboard: PPPlugin = {
+  name: "dashboard",
+  version: "1.0.0",
+  dependencies: ["analytics"], // Must be registered first
+  install(ctx) {
+    const analytics = ctx.getPlugin<{ getStats: () => object }>("analytics");
+    // Use analytics.getStats() ...
+  },
+};
+```
+
+**Plugin Lifecycle Hooks:**
+- `onConnect` / `onDisconnect` — client lifecycle
+- `onMessage` — intercept/block incoming messages
+- `onSend` — transform outgoing messages
+- `onRoomJoin` / `onRoomLeave` — room events
+- `onShutdown` — cleanup on server stop
+- `onError` — error handling
+
+---
+
+## 📈 Benchmarks
 
 | Metric | PaindaProtocol (PP) | Socket.io | Raw WS |
 |---|---|---|---|
 | **Latency (Median)** | **~37 ms** | ~41 ms | ~44 ms |
 | **Throughput (msg/s)** | **~30,400 msg/s** | ~100 msg/s | ~29,100 msg/s |
 
-*Disclaimer: Raw WS loses against PP in throughput benchmarks when transmitting typed/complex data because JSON parsing creates memory pressure in the V8 engine JS event loop. PP avoids this via binary DataViews.*
+---
+
+## ⚡ Socket.io+ Feature Comparison
+
+| Feature | Socket.io | PP |
+|---------|-----------|-----|
+| Namespaces | ✅ | ✅ `server.of()` |
+| Middleware | ✅ | ✅ `server.use()` |
+| Acknowledgements | ✅ | ✅ With Timeout |
+| Connection Recovery | ✅ | ✅ Full Replay + Rooms |
+| Horizontal Scaling | ✅ | ✅ Adapter Interface |
+| HTTP Fallback | ✅ | ✅ PollingTransport |
+| Catch-All | ✅ | ✅ `onAny()` |
+| Volatile | ✅ | ✅ `{ volatile: true }` |
+| **Plugin System** | ❌ | ✅ Full Lifecycle Hooks |
+| **Typed Rooms** | ❌ | ✅ Delta Sync @ 60 FPS |
+| **Presence** | ❌ | ✅ Built-in |
+| **Binary Protocol** | ❌ | ✅ Zero-Copy Native |
+| **Delta Engine** | ❌ | ✅ Gaming State Sync |
+| **Connection Tags** | ❌ | ✅ `broadcastToTag()` |
+| **Token Refresh** | ❌ | ✅ `getToken()` |
+| **Testing Utils** | ❌ | ✅ `@painda/testing` |
 
 ---
 
 ## 🎮 The Delta Engine (`@painda/gaming`)
 
-When building real-time multiplayer games, broadcasting the `(x,y)` coordinates of 100 players 60 times a second will destroy your server's bandwidth. 
-The **Delta Engine** solves this:
-
 ```typescript
 import { StateManager } from "@painda/gaming";
 
-const state = new StateManager({ players: { p1: {x: 10, hp: 100} } });
+const state = new StateManager({
+  players: { p1: { x: 10, hp: 100 } },
+});
 
-// In your 60 FPS Game Loop, a player is injured:
 state.update(s => { s.players.p1.hp = 90; });
+const patch = state.getDelta();
+// { players: { p1: { hp: 90 } } } → 100x smaller!
+server.broadcast({ type: "delta", payload: patch });
+```
 
-const patch = state.getDelta(); 
-// Output: { players: { p1: { hp: 90 } } } -> 100x smaller payload!
+---
 
-// Only this tiny patch is broadcasted to clients over binary!
-server.broadcast(patch);
+## 🛡️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  PPServer                                               │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Plugins  │ │Middleware│ │Namespace │ │  Handlers  │  │
+│  │ Manager  │→│ Pipeline │→│ Router   │→│ + Acks     │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
+│       ↕            ↕            ↕            ↕          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Typed    │ │ Presence │ │ Recovery │ │  Adapter   │  │
+│  │ Rooms    │ │ System   │ │ Manager  │ │ (Redis)    │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 📝 License
-MIT License. Open Core forever. 
+MIT License. Open Core forever.

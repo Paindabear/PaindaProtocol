@@ -1,5 +1,7 @@
 export interface PPSchema<T = unknown> {
   id: number;
+  /** Schema version for compatibility checks. Default: 1 */
+  version?: number;
   encode: (data: T) => Uint8Array;
   decode: (buf: Uint8Array) => T;
 }
@@ -21,6 +23,10 @@ export class PPSchemaRegistry {
     }
     if (this.byId.has(schema.id)) {
       throw new Error(`Schema ID ${schema.id} is already in use`);
+    }
+    // Default version to 1
+    if (schema.version === undefined) {
+      schema.version = 1;
     }
     this.byType.set(type, schema as PPSchema);
     this.byId.set(schema.id, { type, schema: schema as PPSchema });
@@ -59,5 +65,34 @@ export class PPSchemaRegistry {
   getTypeName(typeId: number): string | undefined {
     if (typeId === JSON_FALLBACK_ID) return undefined;
     return this.byId.get(typeId)?.type;
+  }
+
+  /** Feature #15: Get the version of a registered schema by type name. */
+  getVersion(type: string): number {
+    return this.byType.get(type)?.version ?? 0;
+  }
+
+  /**
+   * Feature #15: Check compatibility between two registries.
+   * Returns mismatched schemas (type name, local version, remote version).
+   */
+  checkCompatibility(remote: PPSchemaRegistry): { type: string; localVersion: number; remoteVersion: number }[] {
+    const mismatches: { type: string; localVersion: number; remoteVersion: number }[] = [];
+    for (const [type, schema] of this.byType) {
+      const remoteSchema = remote.byType.get(type);
+      if (remoteSchema && remoteSchema.version !== schema.version) {
+        mismatches.push({
+          type,
+          localVersion: schema.version ?? 1,
+          remoteVersion: remoteSchema.version ?? 1,
+        });
+      }
+    }
+    return mismatches;
+  }
+
+  /** Returns all registered schema types for debugging/metrics. */
+  getRegisteredTypes(): string[] {
+    return [...this.byType.keys()];
   }
 }

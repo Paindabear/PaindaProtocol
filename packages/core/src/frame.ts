@@ -1,5 +1,6 @@
 import { MODE_MAP, MODE_REVERSE, type PPMode, type PPModeId, type PPMessage, type PPDecodedFrame } from "./types.js";
 import type { PPSchemaRegistry } from "./schema.js";
+import { deflateSync, inflateSync } from "node:zlib";
 
 /** Magic bytes: "PPND" (0x50 0x50 0x4E 0x44) */
 export const PP_MAGIC = 0x50504e44;
@@ -19,12 +20,33 @@ export const HEADER_SIZE = 12;
 /** V2 header: 16 bytes (adds type ID + reserved) */
 export const HEADER_SIZE_V2 = 16;
 
+/** Flag bit: compression is active */
+const FLAG_COMPRESSED = 0x04;
+
 /** Flag bit: schema-based encoding is active */
 const FLAG_SCHEMA = 0x08;
+
+/** Minimum payload size to apply compression (bytes). Smaller payloads aren't worth compressing. */
+const COMPRESSION_THRESHOLD = 256;
 
 // Reusable instances for better performance
 const sharedEncoder = new TextEncoder();
 const sharedDecoder = new TextDecoder();
+
+/** Check if compression is available (node:zlib). */
+let compressAvailable = true;
+try {
+  deflateSync(Buffer.from("test"));
+} catch {
+  compressAvailable = false;
+}
+
+export interface EncodeOptions {
+  /** Enable deflate compression for payloads above the threshold. Default: false */
+  compress?: boolean;
+  /** Minimum payload size (bytes) before compression is applied. Default: 256 */
+  compressionThreshold?: number;
+}
 
 /**
  * Encode a PPMessage into a v2 binary frame.
@@ -37,7 +59,7 @@ const sharedDecoder = new TextDecoder();
  *   Bytes 12-13: Type ID (uint16) — schema registry ID, 0 = JSON fallback
  *   Bytes 14-15: Reserved (uint16)
  */
-export function encodeFrame(mode: PPMode, message: PPMessage, registry?: PPSchemaRegistry): Uint8Array {
+export function encodeFrame(mode: PPMode, message: PPMessage, registry?: PPSchemaRegistry, options?: EncodeOptions): Uint8Array {
   const modeId: PPModeId = MODE_MAP[mode];
   let typeId = 0;
   let payload: Uint8Array;
@@ -54,6 +76,23 @@ export function encodeFrame(mode: PPMode, message: PPMessage, registry?: PPSchem
   let flags = modeId & 0x03;
   if (typeId !== 0) {
     flags |= FLAG_SCHEMA;
+  }
+
+  // Feature #16: Compress payload if enabled and above threshold
+  let isCompressed = false;
+  if (options?.compress && compressAvailable && payload.byteLength >= (options.compressionThreshold ?? COMPRESSION_THRESHOLD)) {
+    try {
+      const compressed = deflateSync(payload);
+      if (compressed.byteLength < payload.byteLength) {
+        payload = new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength);
+        isCompressed = true;
+      }
+    } catch {
+      // Compression failed, send uncompressed
+    }
+  }
+  if (isCompressed) {
+    flags |= FLAG_COMPRESSED;
   }
 
   const buffer = new ArrayBuffer(HEADER_SIZE_V2 + payload.byteLength);
@@ -74,11 +113,18 @@ export function encodeFrame(mode: PPMode, message: PPMessage, registry?: PPSchem
 
 /**
  * Decode a binary frame (v1 or v2) back into header metadata and the original message.
+ * @param maxDecompressedSize Maximum allowed decompressed payload size in bytes. Default: 10MB.
  */
-export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array, registry?: PPSchemaRegistry): PPDecodedFrame<T> {
-  const buffer = data instanceof Uint8Array ? data.buffer : data;
-  const byteOffset = data instanceof Uint8Array ? data.byteOffset : 0;
-  const byteLength = data.byteLength;
+export function decodeFrame<T = unknown>(
+  data: ArrayBuffer | Uint8Array,
+  registry?: PPSchemaRegistry,
+  maxDecompressedSize = 10_485_760,
+): PPDecodedFrame<T> {
+  // Ensure we work on a properly bounded view, avoiding buffer-pool slicing bugs
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const buffer = bytes.buffer;
+  const byteOffset = bytes.byteOffset;
+  const byteLength = bytes.byteLength;
 
   if (byteLength < HEADER_SIZE) {
     throw new Error(`PP frame too small: ${byteLength} bytes (minimum ${HEADER_SIZE})`);
@@ -97,7 +143,7 @@ export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array, registr
   const payloadLength = view.getUint32(8);
 
   const modeId = (flags & 0x03) as PPModeId;
-  const compressed = (flags & 0x04) !== 0;
+  const compressed = (flags & FLAG_COMPRESSED) !== 0;
   const hasSchema = (flags & FLAG_SCHEMA) !== 0;
   const mode = MODE_REVERSE[modeId];
 
@@ -111,7 +157,20 @@ export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array, registr
   }
 
   // Zero-copy representation of the payload bytes
-  const payloadBytes = new Uint8Array(buffer, byteOffset + headerSize, payloadLength);
+  let payloadBytes = new Uint8Array(buffer, byteOffset + headerSize, payloadLength);
+
+  // Feature #16: Decompress if compression flag is set
+  if (compressed && compressAvailable) {
+    try {
+      const decompressed = inflateSync(payloadBytes, { maxOutputLength: maxDecompressedSize });
+      if (decompressed.byteLength > maxDecompressedSize) {
+        throw new Error(`Decompressed payload too large: ${decompressed.byteLength} > ${maxDecompressedSize}`);
+      }
+      payloadBytes = new Uint8Array(decompressed.buffer, decompressed.byteOffset, decompressed.byteLength);
+    } catch (err) {
+      throw new Error(`PP frame decompression failed: ${(err as Error).message}`);
+    }
+  }
 
   let message: PPMessage<T>;
 

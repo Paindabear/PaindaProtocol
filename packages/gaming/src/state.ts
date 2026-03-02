@@ -1,4 +1,4 @@
-import { diff } from "./diff.js";
+import { diff, PP_DELETED, isDeleted } from "./diff.js";
 import { patch } from "./patch.js";
 
 /**
@@ -9,8 +9,9 @@ export class StateManager<T extends object> {
     private state: T;
 
     constructor(initialState: T) {
-        this.state = JSON.parse(JSON.stringify(initialState));
-        this.lastState = JSON.parse(JSON.stringify(initialState));
+        // Perf #7: structuredClone instead of JSON.parse(JSON.stringify())
+        this.state = structuredClone(initialState);
+        this.lastState = structuredClone(initialState);
     }
 
     /**
@@ -38,14 +39,14 @@ export class StateManager<T extends object> {
      */
     public getDelta(): any {
         if (!this.lastState) {
-            this.lastState = JSON.parse(JSON.stringify(this.state));
+            this.lastState = structuredClone(this.state);
             return this.state;
         }
 
         const delta = diff(this.lastState, this.state);
 
-        // Once delta is retrieved, save the snapshot for the next tick
-        this.lastState = JSON.parse(JSON.stringify(this.state));
+        // Snapshot for next tick comparison
+        this.lastState = structuredClone(this.state);
 
         return delta;
     }

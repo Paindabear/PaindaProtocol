@@ -1,0 +1,99 @@
+# @painda/core
+
+**Binary Speed. Typed Power. Plugin Ecosystem.**
+
+The high-performance, protocol-first backbone for real-time applications. A modern, production-ready alternative to Socket.io — combining raw WebSocket speed with a zero-copy binary frame architecture.
+
+## Installation
+
+```bash
+npm install @painda/core
+```
+
+## Quick Start
+
+### Server
+
+```typescript
+import { PPServer } from '@painda/core';
+
+const server = new PPServer({
+  port: 3000,
+  recovery: true,
+  presence: { syncInterval: 1000 },
+});
+
+server.on('connection', (client) => {
+  client.on('message', (msg) => {
+    console.log('Received:', msg);
+    client.emit('hello', 'World');
+  });
+});
+```
+
+### Client
+
+```typescript
+import { PPClient } from '@painda/core';
+
+const client = new PPClient({ url: 'ws://localhost:3000' });
+
+client.once('open', () => {
+  client.emit('greet', 'Hello');
+});
+
+client.on('message', (msg) => {
+  console.log('Server says:', msg.payload);
+});
+```
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔩 Zero-Copy Binary Framing | Native `DataView` — no JSON overhead |
+| 📡 Namespaces | `server.of("/admin")` — multiplex on one socket |
+| ⚡ Middleware | `server.use()` — auth, validation, logging chains |
+| 🤝 Acknowledgements | Request-response with configurable timeouts |
+| 🔄 Connection Recovery | Missed messages replayed + rooms restored |
+| 📈 Horizontal Scaling | `PPAdapter` interface for Redis/Postgres |
+| 🧩 Plugin System | `server.register(plugin)` — lifecycle hooks |
+| 🏠 Typed Rooms | Delta-synced rooms at 60 FPS |
+| 👥 Presence | Built-in who's-online tracking |
+| 🏷️ Connection Tags | `broadcastToTag("role", "admin")` |
+| 🛡️ Security | Origin whitelist, IP rate-limiting, max payload |
+| 📊 Live Metrics | `server.getStats()` — clients, rooms, uptime |
+
+## Security Options
+
+```typescript
+const server = new PPServer({
+  port: 3000,
+  maxPayload: 1_048_576,           // 1 MB (default)
+  maxDecompressedSize: 10_485_760, // 10 MB (default)
+  allowedOrigins: ['https://myapp.com'],
+  maxConnectionsPerIp: 50,
+  recoverySecret: 'my-hmac-secret',
+});
+```
+
+## Ecosystem
+
+| Package | Description |
+|---------|-------------|
+| `@painda/gaming` | Delta Engine — binary state sync |
+| `@painda/chat` | Rooms & direct messaging |
+| `@painda/video` | WebRTC signaling |
+| `@painda/auth` | Token-based auth middleware |
+| `@painda/persistence` | Auto-persist to your DB |
+| `@painda/testing` | Test utilities |
+
+## Links
+
+- 📖 [Documentation](https://pp.painda.tools/docs)
+- 🎮 [Live Demo](https://pp.painda.tools/demo)
+- 📝 [GitHub](https://github.com/Paindabear/PaindaProtocol)
+
+## License
+
+MIT

@@ -1,10 +1,12 @@
 {
-  "name": "painda-protocol-packages",
+  "name": "painda-protocol-monorepo",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "build": "npm run build --workspace=@painda/core && npm run build --workspace=@painda/gaming",
-    "build:core": "npm run build --workspace=@painda/core",
-    "build:gaming": "npm run build --workspace=@painda/gaming"
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=apps/web",
+    "build:core": "npm run build --workspace=packages/core",
+    "build:web": "npm run build --workspace=apps/web",
+    "bench:server": "npm run start --workspace=apps/bench-server"
   }
 }

@@ -17,21 +17,41 @@ export function isDeleted(value: unknown): value is PPDeletedMarker {
 }
 
 /**
+ * Check if a value is a "plain" diffable object (not Date, RegExp, null, etc.)
+ */
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+    if (typeof val !== "object" || val === null) return false;
+    // Date, RegExp, ArrayBuffer, TypedArray, Map, Set — treat as primitives
+    if (val instanceof Date || val instanceof RegExp) return false;
+    if (ArrayBuffer.isView(val) || val instanceof ArrayBuffer) return false;
+    return !Array.isArray(val);
+}
+
+/**
  * Compares two state objects and returns an object containing only the differences.
- * This is a deep recursive comparison.
+ * This is a deep recursive comparison optimized for 60 FPS.
  * If a value is deleted, it returns the PP_DELETED sentinel for that key.
+ * 
+ * Performance: Uses for...in loops instead of Set/Array spread to avoid
+ * GC pressure on hot paths (60 frames/second).
  * 
  * @param oldState The previous state
  * @param newState The current state
  * @returns The delta patch, or undefined if no changes
  */
 export function diff(oldState: any, newState: any): any {
+    // Identity check (covers same ref, same primitive, both undefined, both null)
     if (oldState === newState) {
         return undefined;
     }
 
-    if (typeof oldState !== "object" || oldState === null ||
-        typeof newState !== "object" || newState === null) {
+    // If either is not a plain object, return the new value directly.
+    // This handles: primitives, null, undefined, Date, RegExp, etc.
+    if (!isPlainObject(oldState) || !isPlainObject(newState)) {
+        // Special case: Date comparison by value
+        if (oldState instanceof Date && newState instanceof Date) {
+            return oldState.getTime() === newState.getTime() ? undefined : newState;
+        }
         return newState;
     }
 
@@ -41,37 +61,41 @@ export function diff(oldState: any, newState: any): any {
         if (!Array.isArray(oldState) || !Array.isArray(newState) || oldState.length !== newState.length) {
             return newState;
         }
-        let changed = false;
         for (let i = 0; i < oldState.length; i++) {
             if (diff(oldState[i], newState[i]) !== undefined) {
-                changed = true;
-                break;
+                return newState;
             }
         }
-        return changed ? newState : undefined;
+        return undefined;
     }
 
     const delta: any = {};
     let hasChanges = false;
 
-    const allKeys = new Set([...Object.keys(oldState), ...Object.keys(newState)]);
+    // Pass 1: Check keys in newState (added + changed)
+    for (const key in newState) {
+        if (!Object.prototype.hasOwnProperty.call(newState, key)) continue;
 
-    for (const key of allKeys) {
-        if (!(key in newState)) {
-            // Key was deleted — use sentinel object to avoid string collision
-            delta[key] = PP_DELETED;
-            hasChanges = true;
-        } else if (!(key in oldState)) {
+        if (!Object.prototype.hasOwnProperty.call(oldState, key)) {
             // Key was added
             delta[key] = newState[key];
             hasChanges = true;
         } else {
-            // Key exists in both, check deep difference
+            // Key exists in both — deep diff
             const nestedDiff = diff(oldState[key], newState[key]);
             if (nestedDiff !== undefined) {
                 delta[key] = nestedDiff;
                 hasChanges = true;
             }
+        }
+    }
+
+    // Pass 2: Check keys deleted from oldState
+    for (const key in oldState) {
+        if (!Object.prototype.hasOwnProperty.call(oldState, key)) continue;
+        if (!Object.prototype.hasOwnProperty.call(newState, key)) {
+            delta[key] = PP_DELETED;
+            hasChanges = true;
         }
     }
 

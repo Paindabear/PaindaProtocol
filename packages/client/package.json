@@ -1,0 +1,49 @@
+{
+    "name": "@painda/client",
+    "version": "0.1.0",
+    "description": "PaindaProtocol browser client — JSON ↔ Binary bridge with auto-reconnect",
+    "type": "module",
+    "main": "dist/index.js",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./react": {
+            "types": "./dist/react.d.ts",
+            "import": "./dist/react.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "prepublishOnly": "npm run build"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "peerDependencies": {
+        "react": ">=18.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/react": "^19.0.0",
+        "react": "^19.0.0",
+        "typescript": "^5.7.3"
+    },
+    "keywords": [
+        "painda",
+        "paindaprotocol",
+        "websocket",
+        "real-time",
+        "binary-protocol",
+        "react-hook"
+    ],
+    "license": "MIT"
+}

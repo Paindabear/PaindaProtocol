@@ -1,6 +1,6 @@
 {
     "name": "@painda/testing",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Test utilities for PaindaProtocol",
     "type": "module",
     "main": "./dist/index.js",

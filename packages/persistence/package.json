@@ -1,6 +1,6 @@
 {
     "name": "@painda/persistence",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "PaindaProtocol persistence and database bridging middleware",
     "type": "module",
     "main": "./dist/index.js",

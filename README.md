@@ -274,4 +274,8 @@ server.broadcast({ type: "delta", payload: patch });
 ---
 
 ## 📝 License
-MIT License. Open Core forever.
+
+**MIT License** — free for private projects, open-source, and community use.
+
+- **Enterprise (Paid):** Commercial projects above a certain company size or revenue threshold require a commercial license. Inquiries via [pp.painda.tools/enterprise](https://pp.painda.tools/enterprise).
+- **Pro Plugins:** Premium modules (Dashboard, Redis Adapter, Enterprise Support) available at [pp.painda.tools/plugins](https://pp.painda.tools/plugins).

@@ -22,6 +22,7 @@ import { PPPluginManager, type PPPlugin, type PPPluginContext } from "./plugin.j
 import { PPRoomManager, type PPTypedRoom, type TypedRoomOptions } from "./typed-room.js";
 import { PPPresence, type PresenceOptions } from "./presence.js";
 import { createLogger, type PPLogger } from "./logger.js";
+import { sendTelemetryPing } from "./telemetry.js";
 
 type EventHandler = (...args: unknown[]) => void;
 
@@ -333,6 +334,9 @@ export class PPServer {
       ...(verifyClient ? { verifyClient } : {}),
     });
     this.log.info(`Server starting on port ${options.port} (maxPayload: ${maxPayload})`);
+
+    // Anonymous telemetry — fire-and-forget (opt-out: PAINDA_TELEMETRY_DISABLED=1)
+    sendTelemetryPing();
 
     this.wss.on("connection", async (ws: WebSocket, req) => {
       // Security: IP-based connection rate limiting

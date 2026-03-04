@@ -70,6 +70,9 @@ export type { TypedRoomOptions, PPDiffAlgorithm, PPRoomFullPolicy } from "./type
 export { PPPresence } from "./presence.js";
 export type { PresenceData, PresenceEntry, PresenceOptions } from "./presence.js";
 
+// Telemetry
+export { sendTelemetryPing } from "./telemetry.js";
+
 // Types
 export type {
   PPMode,

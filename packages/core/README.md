@@ -88,6 +88,15 @@ const server = new PPServer({
 | `@painda/persistence` | Auto-persist to your DB |
 | `@painda/testing` | Test utilities |
 
+## API overview
+
+- **Frame**: `encodeFrame`, `decodeFrame` (V2 header, optional compression & schema).
+- **Server**: `PPServer`, `server.of("/ns")` (namespaces), `server.room(id, state, options)` (typed rooms), `server.presence`, middleware, rate limit, recovery, adapter, plugins.
+- **Client**: `PPClient`, `client.emit(type, payload)`, `client.on("message"|"roomState"|"roomDelta"|"presence"|...)`, reconnect & ack options.
+- **Schema**: `PPSchemaRegistry`, `register(type, { id, encode, decode })`, built-in serializers.
+
+For a full public-API list and DX notes, see [docs/CORE_API_ANALYSIS.md](../../docs/CORE_API_ANALYSIS.md) in the repo.
+
 ## Links
 
 - 📖 [Documentation](https://pp.painda.tools/docs)

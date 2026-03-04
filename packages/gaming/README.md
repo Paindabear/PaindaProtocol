@@ -53,22 +53,33 @@ High-level wrapper that tracks state and produces diffs.
 
 ## With PP Typed Rooms
 
+Use Gaming’s `diff` as the room’s diff algorithm so deltas use `PP_DELETED` for deleted keys; clients apply them with `patch`:
+
+**Server**
+
 ```typescript
 import { PPServer } from '@painda/core';
+import { diff } from '@painda/gaming';
 
-interface GameState {
-  phase: string;
-  score: Record<string, number>;
-}
-
-const room = server.room<GameState>('lobby', {
-  phase: 'waiting',
-  score: {},
+const server = new PPServer({ port: 7000 });
+const room = server.room('lobby', { phase: 'waiting', score: {} }, {
+  diffAlgorithm: (prev, next) => diff(prev, next),
 });
-
-// Delta auto-broadcast at 60 FPS
+room.start();
 room.update(s => { s.score['player1'] = 10; });
 ```
+
+**Client** (apply incoming deltas)
+
+```typescript
+import { patch } from '@painda/gaming';
+
+client.on('roomDelta', ({ room, delta }) => {
+  patch(localState[room], delta);
+});
+```
+
+See [docs/GAMING_API_ANALYSIS.md](../../docs/GAMING_API_ANALYSIS.md) for full integration details.
 
 ## License
 

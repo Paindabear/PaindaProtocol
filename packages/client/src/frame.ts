@@ -136,7 +136,7 @@ function decompressBrowser(data: Uint8Array): Uint8Array {
             const reader = ds.readable.getReader();
 
             // Start writing
-            writer.write(data);
+            writer.write(data as any);
             writer.close();
 
             // Read all chunks synchronously-ish (we're in a sync context, so this is best-effort)
@@ -193,7 +193,7 @@ export async function decodeFrameAsync<T = unknown>(data: ArrayBuffer | Uint8Arr
         const ds = new DecompressionStream("deflate");
         const writer = ds.writable.getWriter();
         const reader = ds.readable.getReader();
-        writer.write(payloadBytes);
+        writer.write(payloadBytes as any);
         writer.close();
 
         const chunks: Uint8Array[] = [];

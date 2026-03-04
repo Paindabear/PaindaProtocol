@@ -19,7 +19,7 @@ import { randomBytes } from "node:crypto";
 
 const TELEMETRY_FILE = ".painda-telemetry";
 const TELEMETRY_ENDPOINT = "https://admin.painda.tools/api/telemetry";
-const PP_VERSION = "0.1.2";
+const PP_VERSION = "0.1.4";
 
 /**
  * Get or create a persistent, anonymous project ID.

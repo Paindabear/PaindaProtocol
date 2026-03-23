@@ -39,14 +39,24 @@ const decoder = new TextDecoder();
  * Encode a PPMessage into a v2 binary frame.
  * Browser-compatible: no node:zlib, no compression (payloads are small for real-time).
  */
-export function encodeFrame(mode: PPMode, message: PPMessage): Uint8Array {
+export function encodeFrame(mode: PPMode, message: PPMessage, registry?: any): Uint8Array {
     const modeId: PPModeId = MODE_MAP[mode];
+    let typeId = 0;
+    let payload: Uint8Array;
 
-    // JSON-encode the full message
-    const json = JSON.stringify(message);
-    const payload = encoder.encode(json);
+    if (registry && registry.has(message.type)) {
+        const encoded = registry.encode(message.type, message.payload);
+        typeId = encoded.typeId;
+        payload = encoded.payload;
+    } else {
+        const json = JSON.stringify(message);
+        payload = encoder.encode(json);
+    }
 
-    const flags = modeId & 0x03; // no compression, no schema
+    let flags = modeId & 0x03; // no compression
+    if (typeId !== 0) {
+        flags |= FLAG_SCHEMA;
+    }
 
     const buffer = new ArrayBuffer(HEADER_SIZE_V2 + payload.byteLength);
     const view = new DataView(buffer);
@@ -55,7 +65,7 @@ export function encodeFrame(mode: PPMode, message: PPMessage): Uint8Array {
     view.setUint16(4, PP_VERSION);       // Version 2
     view.setUint16(6, flags);            // Flags
     view.setUint32(8, payload.byteLength); // Payload length
-    view.setUint16(12, 0);               // Type ID (0 = JSON)
+    view.setUint16(12, typeId);          // Type ID
     view.setUint16(14, 0);               // Reserved
 
     const frame = new Uint8Array(buffer);
@@ -68,7 +78,7 @@ export function encodeFrame(mode: PPMode, message: PPMessage): Uint8Array {
  * Decode a binary frame (v1 or v2) back into a PPMessage.
  * Handles server-sent frames with or without compression.
  */
-export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array): PPDecodedFrame<T> {
+export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array, registry?: any): PPDecodedFrame<T> {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
@@ -87,11 +97,13 @@ export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array): PPDeco
 
     const modeId = (flags & 0x03) as PPModeId;
     const compressed = (flags & FLAG_COMPRESSED) !== 0;
+    const hasSchema = (flags & FLAG_SCHEMA) !== 0;
     const mode = MODE_REVERSE[modeId];
 
     // V2 has 16-byte header
     const isV2 = version >= 2;
     const headerSize = isV2 ? HEADER_SIZE_V2 : HEADER_SIZE_V1;
+    const typeId = isV2 && bytes.byteLength >= HEADER_SIZE_V2 ? view.getUint16(12) : 0;
 
     if (bytes.byteLength < headerSize + payloadLength) {
         throw new Error(`PP frame truncated: expected ${headerSize + payloadLength}, got ${bytes.byteLength}`);
@@ -104,8 +116,15 @@ export function decodeFrame<T = unknown>(data: ArrayBuffer | Uint8Array): PPDeco
         payloadBytes = decompressBrowser(payloadBytes);
     }
 
-    const json = decoder.decode(payloadBytes);
-    const message = JSON.parse(json) as PPMessage<T>;
+    let message: PPMessage<T>;
+
+    if (hasSchema && typeId !== 0 && registry) {
+        const decoded = registry.decode(typeId, payloadBytes);
+        message = { type: decoded.type, payload: decoded.data as T };
+    } else {
+        const json = decoder.decode(payloadBytes);
+        message = JSON.parse(json) as PPMessage<T>;
+    }
 
     return {
         header: { version, mode, compressed, payloadLength },
@@ -168,7 +187,7 @@ function decompressBrowser(data: Uint8Array): Uint8Array {
 /**
  * Async frame decode — properly handles compressed frames in the browser.
  */
-export async function decodeFrameAsync<T = unknown>(data: ArrayBuffer | Uint8Array): Promise<PPDecodedFrame<T>> {
+export async function decodeFrameAsync<T = unknown>(data: ArrayBuffer | Uint8Array, registry?: any): Promise<PPDecodedFrame<T>> {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
@@ -176,16 +195,18 @@ export async function decodeFrameAsync<T = unknown>(data: ArrayBuffer | Uint8Arr
     const compressed = (flags & FLAG_COMPRESSED) !== 0;
 
     if (!compressed) {
-        return decodeFrame<T>(data);
+        return decodeFrame<T>(data, registry);
     }
 
     // Async decompression
     const version = view.getUint16(4);
     const payloadLength = view.getUint32(8);
+    const hasSchema = (flags & FLAG_SCHEMA) !== 0;
     const modeId = (flags & 0x03) as PPModeId;
     const mode = MODE_REVERSE[modeId];
     const isV2 = version >= 2;
     const headerSize = isV2 ? HEADER_SIZE_V2 : HEADER_SIZE_V1;
+    const typeId = isV2 && bytes.byteLength >= HEADER_SIZE_V2 ? view.getUint16(12) : 0;
 
     let payloadBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + headerSize, payloadLength);
 
@@ -212,8 +233,15 @@ export async function decodeFrameAsync<T = unknown>(data: ArrayBuffer | Uint8Arr
         }
     }
 
-    const json = decoder.decode(payloadBytes);
-    const message = JSON.parse(json) as PPMessage<T>;
+    let message: PPMessage<T>;
+
+    if (hasSchema && typeId !== 0 && registry) {
+        const decoded = registry.decode(typeId, payloadBytes);
+        message = { type: decoded.type, payload: decoded.data as T };
+    } else {
+        const json = decoder.decode(payloadBytes);
+        message = JSON.parse(json) as PPMessage<T>;
+    }
 
     return {
         header: { version, mode, compressed, payloadLength },

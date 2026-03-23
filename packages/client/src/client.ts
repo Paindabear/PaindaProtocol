@@ -159,7 +159,7 @@ export class PPClient {
                 const data = new Uint8Array(event.data);
                 if (isPPFrame(data)) {
                     // Use async decoder to handle compressed frames correctly
-                    const decoded: PPDecodedFrame = await decodeFrameAsync(data);
+                    const decoded: PPDecodedFrame = await decodeFrameAsync(data, this.options.registry);
                     this.handleMessage(decoded.message);
                 } else {
                     // Unknown binary — try as JSON
@@ -286,7 +286,7 @@ export class PPClient {
 
         if (this.protocol === "binary") {
             // JSON → Binary bridge: encode as PP frame
-            const frame = encodeFrame(this.mode, message);
+            const frame = encodeFrame(this.mode, message, this.options.registry);
             this.ws.send(frame);
         } else {
             // Pure JSON mode

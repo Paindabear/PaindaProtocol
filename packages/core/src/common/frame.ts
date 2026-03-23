@@ -1,6 +1,7 @@
+import { deflateSync, inflateSync } from "node:zlib";
 import { MODE_MAP, MODE_REVERSE, type PPMode, type PPModeId, type PPMessage, type PPDecodedFrame } from "./types.js";
 import type { PPSchemaRegistry } from "./schema.js";
-import { deflateSync, inflateSync } from "node:zlib";
+
 
 /** Magic bytes: "PPND" (0x50 0x50 0x4E 0x44) */
 export const PP_MAGIC = 0x50504e44;
@@ -33,13 +34,8 @@ const COMPRESSION_THRESHOLD = 256;
 const sharedEncoder = new TextEncoder();
 const sharedDecoder = new TextDecoder();
 
-/** Check if compression is available (node:zlib). */
-let compressAvailable = true;
-try {
-  deflateSync(Buffer.from("test"));
-} catch {
-  compressAvailable = false;
-}
+/** Compression available — Node.js zlib is available in @painda/core (server-only package). */
+const compressAvailable = true;
 
 export interface EncodeOptions {
   /** Enable deflate compression for payloads above the threshold. Default: false */
@@ -88,7 +84,7 @@ export function encodeFrame(mode: PPMode, message: PPMessage, registry?: PPSchem
         isCompressed = true;
       }
     } catch {
-      // Compression failed, send uncompressed
+      // Compression failed — send uncompressed (safe fallback)
     }
   }
   if (isCompressed) {
@@ -159,13 +155,9 @@ export function decodeFrame<T = unknown>(
   // Zero-copy representation of the payload bytes
   let payloadBytes = new Uint8Array(buffer, byteOffset + headerSize, payloadLength);
 
-  // Feature #16: Decompress if compression flag is set
   if (compressed && compressAvailable) {
     try {
       const decompressed = inflateSync(payloadBytes, { maxOutputLength: maxDecompressedSize });
-      if (decompressed.byteLength > maxDecompressedSize) {
-        throw new Error(`Decompressed payload too large: ${decompressed.byteLength} > ${maxDecompressedSize}`);
-      }
       payloadBytes = new Uint8Array(decompressed.buffer, decompressed.byteOffset, decompressed.byteLength);
     } catch (err) {
       throw new Error(`PP frame decompression failed: ${(err as Error).message}`);

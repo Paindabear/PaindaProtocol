@@ -1,6 +1,8 @@
 import { encodeFrame, decodeFrame } from "./frame.js";
-import type { PPSchemaRegistry } from "./schema.js";
+import { PPSchemaRegistry } from "./schema.js";
 import type { PPClientOptions, PPClientEventMap, PPMessage, PPMode, PPReconnectConfig } from "./types.js";
+export { PPSchemaRegistry };
+export type { PPClientOptions, PPClientEventMap, PPMessage, PPMode, PPReconnectConfig };
 import { PPError } from "./errors.js";
 import { createLogger, type PPLogger } from "./logger.js";
 

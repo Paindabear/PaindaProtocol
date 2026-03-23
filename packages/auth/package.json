@@ -1,6 +1,6 @@
 {
     "name": "@painda/auth",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "PaindaProtocol authentication middleware and JWT validators",
     "type": "module",
     "main": "./dist/index.js",

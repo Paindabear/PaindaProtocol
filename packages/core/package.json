@@ -1,6 +1,6 @@
 {
   "name": "@painda/core",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The high-performance binary backbone for real-time apps",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,6 +9,26 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./frame": {
+      "import": "./dist/common/frame.js",
+      "types": "./dist/common/frame.d.ts"
+    },
+    "./schema": {
+      "import": "./dist/common/schema.js",
+      "types": "./dist/common/schema.d.ts"
+    },
+    "./types": {
+      "import": "./dist/common/types.js",
+      "types": "./dist/common/types.d.ts"
+    },
+    "./common/*": {
+      "import": "./dist/common/*.js",
+      "types": "./dist/common/*.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
     }
   },
   "files": [

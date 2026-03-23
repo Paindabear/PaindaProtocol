@@ -13,6 +13,7 @@
  */
 
 import { encodeFrame, decodeFrame, decodeFrameAsync, isPPFrame } from "./frame.js";
+import type { PPDecodedFrame } from "./types.js";
 import type {
     PPMode,
     PPMessage,
@@ -23,7 +24,8 @@ import type {
 } from "./types.js";
 
 type EventHandler = (...args: any[]) => void;
-type AckCallback = (error: Error | null, ...args: any[]) => void;
+export type PPClientAckCallback = (error: Error | null, ...args: any[]) => void;
+type AckCallback = PPClientAckCallback;
 
 const MAX_QUEUE = 256;
 let ackCounter = 0;
@@ -42,6 +44,9 @@ export class PPClient {
     private ackCallbacks = new Map<number, { callback: AckCallback; timer: ReturnType<typeof setTimeout> }>();
     private debug: boolean;
     private reconnectConfig: PPReconnectConfig | null = null;
+    private sessionId: string | null = null;
+    private lastOffset = -1;
+    private recoveryToken: string | null = null;
 
     /** Current connection state */
     state: PPConnectionState = "disconnected";
@@ -90,6 +95,15 @@ export class PPClient {
         try {
             let url = this.options.url;
 
+            // Recovery parameters
+            if (this.sessionId && this.lastOffset >= 0) {
+                const sep = url.includes("?") ? "&" : "?";
+                url = `${url}${sep}pp_sid=${this.sessionId}&pp_offset=${this.lastOffset}`;
+                if (this.recoveryToken) {
+                    url = `${url}&pp_rtoken=${this.recoveryToken}`;
+                }
+            }
+
             // Token refresh
             if (this.options.getToken) {
                 const token = await this.options.getToken();
@@ -113,33 +127,7 @@ export class PPClient {
             };
 
             ws.onmessage = (event: MessageEvent) => {
-                try {
-                    if (this.protocol === "json" || typeof event.data === "string") {
-                        // JSON mode or text message
-                        const msg = typeof event.data === "string"
-                            ? JSON.parse(event.data)
-                            : JSON.parse(new TextDecoder().decode(event.data));
-
-                        this.handleMessage(msg);
-                    } else if (event.data instanceof ArrayBuffer) {
-                        // Binary mode — decode PP frame
-                        const data = new Uint8Array(event.data);
-
-                        if (isPPFrame(data)) {
-                            // PP binary frame → decode to JSON message
-                            const { message } = decodeFrame(data);
-                            this.handleMessage(message);
-                        } else {
-                            // Unknown binary — try as JSON
-                            const text = new TextDecoder().decode(data);
-                            const msg = JSON.parse(text);
-                            this.handleMessage(msg);
-                        }
-                    }
-                } catch (err) {
-                    this.log("Failed to decode message:", err);
-                    this._fire("error", err instanceof Error ? err : new Error(String(err)));
-                }
+                void this.onMessage(event);
             };
 
             ws.onclose = (event) => {
@@ -160,8 +148,40 @@ export class PPClient {
         }
     }
 
+    private async onMessage(event: MessageEvent): Promise<void> {
+        try {
+            if (this.protocol === "json" || typeof event.data === "string") {
+                const msg = typeof event.data === "string"
+                    ? JSON.parse(event.data)
+                    : JSON.parse(new TextDecoder().decode(event.data));
+                this.handleMessage(msg);
+            } else if (event.data instanceof ArrayBuffer) {
+                const data = new Uint8Array(event.data);
+                if (isPPFrame(data)) {
+                    // Use async decoder to handle compressed frames correctly
+                    const decoded: PPDecodedFrame = await decodeFrameAsync(data);
+                    this.handleMessage(decoded.message);
+                } else {
+                    // Unknown binary — try as JSON
+                    const msg = JSON.parse(new TextDecoder().decode(data));
+                    this.handleMessage(msg);
+                }
+            }
+        } catch (err) {
+            this.log("Failed to decode message:", err);
+            this._fire("error", err instanceof Error ? err : new Error(String(err)));
+        }
+    }
+
     private handleMessage(msg: PPMessage | any): void {
         // Internal PP messages
+        if (msg.type === "__pp_session") {
+            const { sid, offset, rtoken } = msg.payload as { sid: string; offset: number; rtoken?: string };
+            this.sessionId = sid;
+            this.lastOffset = offset;
+            if (rtoken) this.recoveryToken = rtoken;
+            return;
+        }
         if (msg.type === "__pp_error") {
             this._fire("serverError", msg.payload ?? msg);
             return;
@@ -174,6 +194,11 @@ export class PPClient {
                 ack.callback(null, ...(msg.payload.args ?? []));
             }
             return;
+        }
+
+        // Track offset for recovery
+        if (this.sessionId) {
+            this.lastOffset++;
         }
 
         // Fire typed event handler

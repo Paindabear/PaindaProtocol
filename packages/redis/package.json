@@ -1,0 +1,35 @@
+{
+  "name": "@painda/redis",
+  "version": "0.1.1",
+  "description": "Redis adapter for PaindaProtocol — binary-format pub/sub for horizontal scaling",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "npx tsx test.ts"
+  },
+  "dependencies": {
+    "ioredis": "^5.3.2"
+  },
+  "peerDependencies": {
+    "@painda/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@painda/core": "file:../core",
+    "@types/node": "^22",
+    "typescript": "^5"
+  },
+  "author": "Painda",
+  "license": "MIT"
+}

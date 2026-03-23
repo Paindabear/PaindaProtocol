@@ -174,6 +174,24 @@ export interface PPClientOptions {
   logger?: PPLoggerOptions;
 }
 
+// --- Broadcast targets (Socket.io-style chaining) ---
+
+/** Chainable broadcaster for socket.to("room").emit() and socket.broadcast.emit() patterns. */
+export interface PPBroadcastTarget {
+  emit<T = unknown>(type: string, payload: T): void;
+  send<T = unknown>(message: PPMessage<T>): void;
+}
+
+/** Chainable broadcaster for server.in("room") / server.except("room") patterns. */
+export interface PPServerBroadcastTarget extends PPBroadcastTarget {
+  /** Fetch all sockets currently in the target room(s). */
+  fetchSockets(): Promise<PPClientSocket[]>;
+  /** Disconnect all sockets in the target room(s). */
+  disconnectSockets(close?: boolean): Promise<void>;
+  /** Exclude sockets in given room(s) from the broadcast. */
+  except(roomId: string | string[]): PPServerBroadcastTarget;
+}
+
 // --- Typed event system ---
 
 export interface PPClientSocket {
@@ -184,10 +202,15 @@ export interface PPClientSocket {
   emit<T = unknown>(type: string, payload: T): void;
   sendRaw(frame: Uint8Array): void;
   close(code?: number, reason?: string): void;
+  /** Listen for system events (message, close, error). */
   on<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  /** Listen for any message type by name — fires with the message payload. */
+  on(event: string, listener: (payload: unknown) => void): void;
   /** Listen once, then auto-remove. */
   once<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  once(event: string, listener: (payload: unknown) => void): void;
   off<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  off(event: string, listener: (payload: unknown) => void): void;
   /** Catch-all listener */
   onAny(listener: (event: string, ...args: unknown[]) => void): void;
   offAny(listener: (event: string, ...args: unknown[]) => void): void;
@@ -203,6 +226,85 @@ export interface PPClientSocket {
   removeTag(key: string): void;
   /** Get all tags. */
   getAllTags(): Map<string, string>;
+
+  // ---- Room API (Socket.io-compatible) ----
+
+  /** Join a generic adapter room. Promise resolves when the client is registered. */
+  join(roomId: string): Promise<void>;
+  /** Leave a generic adapter room. */
+  leave(roomId: string): Promise<void>;
+  /** All rooms this socket is currently in (snapshot). */
+  readonly rooms: Set<string>;
+  /**
+   * Broadcast to all sockets in `roomId`, excluding this socket.
+   * @example socket.to("game-1").emit("update", delta)
+   */
+  to(roomId: string): PPBroadcastTarget;
+  /**
+   * Broadcast to all connected sockets, excluding this socket.
+   * @example socket.broadcast.emit("announcement", msg)
+   */
+  readonly broadcast: PPBroadcastTarget;
+
+  /**
+   * Set a per-send ack timeout for the next emit/send call.
+   * Returns a chainable object whose `emit` fires a callback on ack or timeout.
+   *
+   * @example
+   * ```ts
+   * socket.timeout(3000).emit("save", data, (err, response) => {
+   *   if (err) console.error("No ack within 3s");
+   *   else console.log("Saved:", response);
+   * });
+   * ```
+   */
+  timeout(ms: number): PPTimeoutEmitter;
+}
+
+/** Returned by `socket.timeout(ms)` — provides a one-shot timed emit with ack callback. */
+export interface PPTimeoutEmitter {
+  emit<T = unknown>(type: string, payload: T, callback: (err: Error | null, ...args: unknown[]) => void): void;
+}
+
+/**
+ * Typed socket with compile-time event safety.
+ *
+ * @template TListen  Events the server receives from the client (client → server).
+ * @template TEmit    Events the server sends to the client (server → client).
+ *
+ * @example
+ * ```ts
+ * interface ClientEvents { move: { x: number; y: number } }
+ * interface ServerEvents { state: GameState }
+ *
+ * const server = new PPServer<ClientEvents, ServerEvents>({ port: 3000 });
+ * server.on("connection", (socket) => {
+ *   socket.on("move", (data) => {  // data: { x: number; y: number }
+ *     socket.emit("state", newState); // newState: GameState
+ *   });
+ * });
+ * ```
+ */
+export interface PPTypedSocket<
+  TListen extends Record<string, unknown> = Record<string, unknown>,
+  TEmit extends Record<string, unknown> = Record<string, unknown>,
+> extends Omit<PPClientSocket, "on" | "once" | "off" | "emit"> {
+  /** Listen for a typed client→server event. */
+  on<K extends keyof TListen & string>(event: K, listener: (payload: TListen[K]) => void): void;
+  on<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  on(event: string, listener: (payload: unknown) => void): void;
+
+  once<K extends keyof TListen & string>(event: K, listener: (payload: TListen[K]) => void): void;
+  once<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  once(event: string, listener: (payload: unknown) => void): void;
+
+  off<K extends keyof TListen & string>(event: K, listener: (payload: TListen[K]) => void): void;
+  off<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  off(event: string, listener: (payload: unknown) => void): void;
+
+  /** Send a typed server→client event. */
+  emit<K extends keyof TEmit & string>(type: K, payload: TEmit[K]): void;
+  emit<T = unknown>(type: string, payload: T): void;
 }
 
 export interface PPClientSocketEventMap {
@@ -211,15 +313,18 @@ export interface PPClientSocketEventMap {
   error: (error: Error) => void;
 }
 
-export interface PPServerEventMap {
-  connection: (client: PPClientSocket) => void;
-  disconnection: (client: PPClientSocket) => void;
+export interface PPServerEventMap<
+  TListen extends Record<string, unknown> = Record<string, unknown>,
+  TEmit extends Record<string, unknown> = Record<string, unknown>,
+> {
+  connection: (client: PPTypedSocket<TListen, TEmit>) => void;
+  disconnection: (client: PPTypedSocket<TListen, TEmit>) => void;
   error: (error: Error) => void;
   close: () => void;
   /** Fired when a client joins a typed room. */
-  roomJoin: (client: PPClientSocket, roomId: string) => void;
+  roomJoin: (client: PPTypedSocket<TListen, TEmit>, roomId: string) => void;
   /** Fired when a client leaves a typed room. */
-  roomLeave: (client: PPClientSocket, roomId: string) => void;
+  roomLeave: (client: PPTypedSocket<TListen, TEmit>, roomId: string) => void;
 }
 
 export interface PPClientEventMap {

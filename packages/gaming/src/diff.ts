@@ -16,6 +16,131 @@ export function isDeleted(value: unknown): value is PPDeletedMarker {
     );
 }
 
+// ---- Array delta operations ----
+
+export type ArrayOp =
+    | { op: "set"; index: number; value: unknown }
+    | { op: "splice"; index: number; deleteCount: number; items: unknown[] };
+
+export interface PPArrayOpsMarker {
+    __pp_array_ops: ArrayOp[];
+}
+
+export function isArrayOps(value: unknown): value is PPArrayOpsMarker {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        Array.isArray((value as Record<string, unknown>).__pp_array_ops)
+    );
+}
+
+/** Max array length to apply Myers diff. Larger arrays fall back to wholesale replacement. */
+const ARRAY_DIFF_MAX_SIZE = 1000;
+
+/**
+ * Myers O(ND) diff algorithm for arrays.
+ * Returns ops in descending index order (safe for in-place application without offset tracking).
+ * Returns undefined if arrays are identical.
+ */
+function myersDiff(a: unknown[], b: unknown[]): ArrayOp[] | undefined {
+    const n = a.length;
+    const m = b.length;
+
+    // Identity shortcut
+    if (n === 0 && m === 0) return undefined;
+    if (n === 0) return [{ op: "splice", index: 0, deleteCount: 0, items: b.slice() }];
+    if (m === 0) return [{ op: "splice", index: 0, deleteCount: n, items: [] }];
+
+    // Element equality check — fast path for primitives, then deep for objects
+    function eq(x: unknown, y: unknown): boolean {
+        if (x === y) return true;
+        // For objects/arrays, use diff to check equality
+        if (typeof x === "object" && x !== null && typeof y === "object" && y !== null) {
+            return diff(x, y) === undefined;
+        }
+        return false;
+    }
+
+    // Myers edit script — produces list of (x, y, isInsert, isDelete) edit steps
+    const max = n + m;
+    const v = new Int32Array(2 * max + 1);
+    const trace: Int32Array[] = [];
+
+    let found = false;
+    outer: for (let d = 0; d <= max; d++) {
+        trace.push(v.slice());
+        for (let k = -d; k <= d; k += 2) {
+            let x: number;
+            const ki = k + max;
+            if (k === -d || (k !== d && v[ki - 1] < v[ki + 1])) {
+                x = v[ki + 1]; // move down
+            } else {
+                x = v[ki - 1] + 1; // move right
+            }
+            let y = x - k;
+            while (x < n && y < m && eq(a[x], b[y])) { x++; y++; }
+            v[ki] = x;
+            if (x >= n && y >= m) { found = true; break outer; }
+        }
+    }
+    if (!found) return b.slice() as any; // fallback
+
+    // Backtrack to build edit script
+    let x = n, y = m;
+    const edits: Array<{ type: "insert" | "delete" | "equal"; ax: number; by: number }> = [];
+
+    for (let d = trace.length - 1; d > 0 && (x > 0 || y > 0); d--) {
+        const vPrev = trace[d - 1];
+        const k = x - y;
+        const ki = k + max;
+        const kPrev = (k === -d || (k !== d && vPrev[ki - 1] < vPrev[ki + 1])) ? k + 1 : k - 1;
+        const xPrev = vPrev[kPrev + max];
+        const yPrev = xPrev - kPrev;
+
+        while (x > xPrev + 1 && y > yPrev + 1) { x--; y--; edits.push({ type: "equal", ax: x, by: y }); }
+        if (d > 0) {
+            if (x === xPrev + 1 && y === yPrev) {
+                edits.push({ type: "delete", ax: x - 1, by: y });
+                x--;
+            } else if (y === yPrev + 1 && x === xPrev) {
+                edits.push({ type: "insert", ax: x, by: y - 1 });
+                y--;
+            } else {
+                // diagonal
+                while (x > xPrev && y > yPrev) { x--; y--; edits.push({ type: "equal", ax: x, by: y }); }
+            }
+        }
+    }
+
+    edits.reverse();
+
+    // Merge consecutive edits into splice ops
+    const ops: ArrayOp[] = [];
+    let i = 0;
+    while (i < edits.length) {
+        const e = edits[i];
+        if (e.type === "equal") { i++; continue; }
+
+        // Collect contiguous delete/insert block
+        const startIdx = e.ax;
+        let deleteCount = 0;
+        const items: unknown[] = [];
+        while (i < edits.length && edits[i].type !== "equal") {
+            if (edits[i].type === "delete") deleteCount++;
+            else items.push(b[edits[i].by]);
+            i++;
+        }
+        ops.push({ op: "splice", index: startIdx, deleteCount, items });
+    }
+
+    if (ops.length === 0) return undefined;
+
+    // Return ops in descending index order for safe in-place application
+    ops.sort((a, b) => (b.op === "splice" ? (b as any).index : 0) - (a.op === "splice" ? (a as any).index : 0));
+
+    return ops;
+}
+
 /**
  * Check if a value is a "plain" diffable object (not Date, RegExp, null, etc.)
  */
@@ -55,18 +180,24 @@ export function diff(oldState: any, newState: any): any {
         return newState;
     }
 
-    // Handle Arrays: replace entirely if they differ.
-    // TODO: Phase 2+ — implement array splice operations for large arrays.
+    // Handle Arrays: compute delta ops for efficient patching.
     if (Array.isArray(oldState) || Array.isArray(newState)) {
-        if (!Array.isArray(oldState) || !Array.isArray(newState) || oldState.length !== newState.length) {
-            return newState;
+        if (!Array.isArray(oldState) || !Array.isArray(newState)) {
+            return newState; // type changed — full replacement
         }
-        for (let i = 0; i < oldState.length; i++) {
-            if (diff(oldState[i], newState[i]) !== undefined) {
-                return newState;
+        // Large arrays: wholesale replacement is cheaper than diffing
+        if (oldState.length > ARRAY_DIFF_MAX_SIZE || newState.length > ARRAY_DIFF_MAX_SIZE) {
+            if (oldState.length !== newState.length) return newState;
+            for (let i = 0; i < oldState.length; i++) {
+                if (diff(oldState[i], newState[i]) !== undefined) return newState;
             }
+            return undefined;
         }
-        return undefined;
+        const ops = myersDiff(oldState, newState);
+        if (ops === undefined) return undefined;
+        // Wholesale if more than half the array changed (cheaper to send full array)
+        if (ops.length > Math.ceil(oldState.length / 2) + 1) return newState;
+        return { __pp_array_ops: ops } as PPArrayOpsMarker;
     }
 
     const delta: any = {};

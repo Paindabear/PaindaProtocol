@@ -1,4 +1,15 @@
-import { isDeleted } from "./diff.js";
+import { isDeleted, isArrayOps, type ArrayOp } from "./diff.js";
+
+function applyArrayOps(arr: unknown[], ops: ArrayOp[]): void {
+    // Ops are in descending index order — safe to apply without offset tracking
+    for (const op of ops) {
+        if (op.op === "set") {
+            arr[op.index] = op.value;
+        } else if (op.op === "splice") {
+            arr.splice(op.index, op.deleteCount, ...op.items);
+        }
+    }
+}
 
 /**
  * Applies a delta patch to an existing state object.
@@ -17,6 +28,13 @@ import { isDeleted } from "./diff.js";
  */
 export function patch(state: any, delta: any): any {
     if (delta === undefined) {
+        return state;
+    }
+
+    // Array ops marker — apply in-place
+    if (isArrayOps(delta)) {
+        if (!Array.isArray(state)) state = [];
+        applyArrayOps(state as unknown[], delta.__pp_array_ops);
         return state;
     }
 

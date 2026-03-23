@@ -78,4 +78,7 @@ export interface PPClientOptions {
 
     /** Enable debug logging to console. Default: false */
     debug?: boolean;
+
+    /** Schema registry for binary type IDs (optional) */
+    registry?: any;
 }

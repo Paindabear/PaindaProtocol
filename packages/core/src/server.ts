@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import crypto from "node:crypto";
-import { encodeFrame, decodeFrame } from "./frame.js";
-import type { PPSchemaRegistry } from "./schema.js";
+import { encodeFrame, decodeFrame, type EncodeOptions } from "./common/frame.js";
+import type { PPSchemaRegistry } from "./common/schema.js";
 import type {
   PPServerOptions,
   PPMessage,
@@ -12,19 +12,160 @@ import type {
   PPRateLimitConfig,
   PPHeartbeatConfig,
   PPCompressionConfig,
-} from "./types.js";
-import { PPNamespace, type PPNamespacedSocket, type PPAckMessage } from "./namespace.js";
-import { PPMiddlewarePipeline, type PPConnectionMiddleware, type PPMessageMiddleware } from "./middleware.js";
-import { PPRecoveryManager, type RecoveryOptions } from "./recovery.js";
-import { PPError } from "./errors.js";
-import { InMemoryAdapter, type PPAdapter } from "./adapter.js";
-import { PPPluginManager, type PPPlugin, type PPPluginContext } from "./plugin.js";
-import { PPRoomManager, type PPTypedRoom, type TypedRoomOptions } from "./typed-room.js";
-import { PPPresence, type PresenceOptions } from "./presence.js";
-import { createLogger, type PPLogger } from "./logger.js";
-import { sendTelemetryPing } from "./telemetry.js";
+  PPBroadcastTarget,
+  PPServerBroadcastTarget,
+  PPTypedSocket,
+  PPTimeoutEmitter,
+} from "./common/types.js";
+import { PPNamespace, type PPNamespacedSocket, type PPAckMessage } from "./common/namespace.js";
+import { PPMiddlewarePipeline, type PPConnectionMiddleware, type PPMessageMiddleware } from "./common/middleware.js";
+import { PPRecoveryManager, type RecoveryOptions } from "./common/recovery.js";
+import { PPError } from "./common/errors.js";
+import { InMemoryAdapter, type PPAdapter } from "./common/adapter.js";
+import { PPPluginManager, type PPPlugin, type PPPluginContext } from "./common/plugin.js";
+import { PPRoomManager, type PPTypedRoom, type TypedRoomOptions } from "./common/typed-room.js";
+import { PPPresence, type PresenceOptions } from "./common/presence.js";
+import { createLogger, type PPLogger } from "./common/logger.js";
+// import { sendTelemetryPing } from "./common/node/telemetry.js";
 
 type EventHandler = (...args: unknown[]) => void;
+
+// ---- Socket-to-Server Bridge (avoids circular dependency) ----
+
+interface SocketServerContext {
+  readonly adapter: PPAdapter;
+  readonly clients: Map<string, PPClientSocketImpl>;
+  readonly mode: PPMode;
+  readonly registry?: PPSchemaRegistry;
+  readonly encodeOpts: EncodeOptions;
+}
+
+// ---- Socket-level Broadcast Operator ----
+
+class PPBroadcastOperator implements PPBroadcastTarget {
+  constructor(
+    private readonly ctx: SocketServerContext,
+    private readonly targetRoom: string | null,
+    private readonly excludeId: string | null,
+  ) {}
+
+  emit<T = unknown>(type: string, payload: T): void {
+    const frame = encodeFrame(this.ctx.mode, { type, payload: payload as unknown }, this.ctx.registry, this.ctx.encodeOpts);
+    if (this.targetRoom !== null) {
+      void this.ctx.adapter.getClientsInRoom(this.targetRoom).then((ids) => {
+        for (const id of ids) {
+          if (id === this.excludeId) continue;
+          this.ctx.clients.get(id)?.sendRaw(frame);
+        }
+      });
+    } else {
+      for (const [id, client] of this.ctx.clients) {
+        if (id === this.excludeId) continue;
+        client.sendRaw(frame);
+      }
+    }
+  }
+
+  send<T = unknown>(message: PPMessage<T>): void {
+    this.emit(message.type, message.payload);
+  }
+}
+
+// ---- Server-level Room Broadcaster (server.in / server.to / server.except) ----
+
+class PPServerRoomBroadcaster implements PPServerBroadcastTarget {
+  constructor(
+    private readonly ctx: SocketServerContext,
+    private readonly targetRooms: string[],     // empty = all clients
+    private readonly exceptRooms: string[] = [],
+    private readonly targetAll: boolean = false, // true when created by server.except()
+  ) {}
+
+  emit<T = unknown>(type: string, payload: T): void {
+    void this.resolveIds().then((ids) => {
+      const frame = encodeFrame(this.ctx.mode, { type, payload: payload as unknown }, this.ctx.registry, this.ctx.encodeOpts);
+      for (const id of ids) {
+        this.ctx.clients.get(id)?.sendRaw(frame);
+      }
+    });
+  }
+
+  send<T = unknown>(message: PPMessage<T>): void {
+    this.emit(message.type, message.payload);
+  }
+
+  async fetchSockets(): Promise<PPClientSocket[]> {
+    const ids = await this.resolveIds();
+    const result: PPClientSocket[] = [];
+    for (const id of ids) {
+      const c = this.ctx.clients.get(id);
+      if (c) result.push(c);
+    }
+    return result;
+  }
+
+  async disconnectSockets(close = true): Promise<void> {
+    const sockets = await this.fetchSockets();
+    for (const s of sockets) s.close(close ? 1000 : undefined, "Disconnected by server");
+  }
+
+  except(roomId: string | string[]): PPServerBroadcastTarget {
+    const extra = Array.isArray(roomId) ? roomId : [roomId];
+    return new PPServerRoomBroadcaster(this.ctx, this.targetRooms, [...this.exceptRooms, ...extra], this.targetAll);
+  }
+
+  private async resolveIds(): Promise<Set<string>> {
+    // Collect excluded IDs first
+    const excluded = new Set<string>();
+    for (const room of this.exceptRooms) {
+      const ids = await this.ctx.adapter.getClientsInRoom(room);
+      for (const id of ids) excluded.add(id);
+    }
+
+    if (this.targetAll) {
+      // server.except() — all connected clients minus excluded rooms
+      const all = new Set<string>();
+      for (const id of this.ctx.clients.keys()) {
+        if (!excluded.has(id)) all.add(id);
+      }
+      return all;
+    }
+
+    // Collect target IDs from rooms
+    const target = new Set<string>();
+    for (const room of this.targetRooms) {
+      const ids = await this.ctx.adapter.getClientsInRoom(room);
+      for (const id of ids) {
+        if (!excluded.has(id)) target.add(id);
+      }
+    }
+    return target;
+  }
+}
+
+// ---- Timeout Emitter ----
+
+class PPSocketTimeoutEmitter implements PPTimeoutEmitter {
+  constructor(
+    private readonly socket: PPClientSocketImpl,
+    private readonly ms: number,
+  ) {}
+
+  emit<T = unknown>(type: string, payload: T, callback: (err: Error | null, ...args: unknown[]) => void): void {
+    const ackId = ++serverAckCounter;
+    const msg = { type, payload: payload as unknown, __ackId: ackId } as PPMessage & { __ackId: number };
+
+    const timer = setTimeout(() => {
+      this.socket._pendingAcks.delete(ackId);
+      callback(new Error(`Ack timeout after ${this.ms}ms for "${type}"`));
+    }, this.ms);
+
+    this.socket._pendingAcks.set(ackId, { timer, callback });
+    this.socket.send(msg as PPMessage);
+  }
+}
+
+let serverAckCounter = 0;
 
 // ---- Rate Limiter ----
 
@@ -134,9 +275,13 @@ class PPClientSocketImpl implements PPClientSocket {
   private maxDecompressedSize: number;
   private listeners = new Map<string, Set<EventHandler>>();
   private anyListeners: Set<(event: string, ...args: unknown[]) => void> = new Set();
+  private _ctx!: SocketServerContext;
+  private _rooms: Set<string> = new Set();
 
   data: Record<string, unknown> = {};
   private tags = new Map<string, string>();
+  /** Pending ack callbacks registered via socket.timeout(ms).emit() */
+  readonly _pendingAcks = new Map<number, { timer: ReturnType<typeof setTimeout>; callback: (err: Error | null, ...args: unknown[]) => void }>();
 
   constructor(ws: WebSocket, mode: PPMode, registry?: PPSchemaRegistry, existingId?: string, maxDecompressedSize = 10_485_760) {
     this.id = existingId ?? crypto.randomUUID();
@@ -173,7 +318,7 @@ class PPClientSocketImpl implements PPClientSocket {
   /** Send a PPMessage (binary-encoded). */
   send<T = unknown>(message: PPMessage<T>): void {
     if (this.ws.readyState !== WebSocket.OPEN) return;
-    const frame = encodeFrame(this.mode, message as PPMessage, this.registry);
+    const frame = encodeFrame(this.mode, message as PPMessage, this.registry, this._ctx?.encodeOpts);
     this.ws.send(frame);
   }
 
@@ -200,27 +345,83 @@ class PPClientSocketImpl implements PPClientSocket {
   removeTag(key: string): void { this.tags.delete(key); }
   getAllTags(): Map<string, string> { return new Map(this.tags); }
 
-  on<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void {
-    const key = event as string;
-    if (!this.listeners.has(key)) this.listeners.set(key, new Set());
-    this.listeners.get(key)!.add(listener as EventHandler);
+  // ---- Room API ----
+
+  /** Called by PPServer right after construction to wire the socket to the server context. */
+  _attachContext(ctx: SocketServerContext): void { this._ctx = ctx; }
+
+  async join(roomId: string): Promise<void> {
+    await this._ctx.adapter.addToRoom(roomId, this.id);
+    this._rooms.add(roomId);
+  }
+
+  async leave(roomId: string): Promise<void> {
+    await this._ctx.adapter.removeFromRoom(roomId, this.id);
+    this._rooms.delete(roomId);
+  }
+
+  get rooms(): Set<string> { return new Set(this._rooms); }
+
+  to(roomId: string): PPBroadcastTarget {
+    return new PPBroadcastOperator(this._ctx, roomId, this.id);
+  }
+
+  get broadcast(): PPBroadcastTarget {
+    return new PPBroadcastOperator(this._ctx, null, this.id);
+  }
+
+  /**
+   * Set a per-emit ack timeout. Returns a one-shot emitter.
+   * @example socket.timeout(3000).emit("save", data, (err, result) => { ... })
+   */
+  timeout(ms: number): PPTimeoutEmitter {
+    return new PPSocketTimeoutEmitter(this, ms);
+  }
+
+  /** Internal: resolve a pending timeout-ack. Called by the message handler when __pp_ack arrives. */
+  _resolveTimeoutAck(ackId: number, args: unknown[]): boolean {
+    const pending = this._pendingAcks.get(ackId);
+    if (!pending) return false;
+    clearTimeout(pending.timer);
+    this._pendingAcks.delete(ackId);
+    pending.callback(null, ...args);
+    return true;
+  }
+
+  /** Internal: called by PPServer on disconnect to clear adapter membership. */
+  async _leaveAllAdapterRooms(): Promise<void> {
+    const rooms = [...this._rooms];
+    this._rooms.clear();
+    await Promise.all(rooms.map((r) => this._ctx.adapter.removeFromRoom(r, this.id)));
+  }
+
+  // ---- Event API ----
+
+  on<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  on(event: string, listener: (payload: unknown) => void): void;
+  on(event: string, listener: EventHandler): void {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event)!.add(listener as EventHandler);
   }
 
   /** Listen once, then auto-remove. */
-  once<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void {
+  once<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  once(event: string, listener: (payload: unknown) => void): void;
+  once(event: string, listener: EventHandler): void {
     const wrapped = ((...args: unknown[]) => {
       this.off(event, wrapped as any);
-      (listener as EventHandler)(...args);
-    }) as PPClientSocketEventMap[K];
+      listener(...args);
+    }) as EventHandler;
     this.on(event, wrapped);
   }
 
-  off<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void {
-    const key = event as string;
-    const set = this.listeners.get(key);
+  off<K extends keyof PPClientSocketEventMap>(event: K, listener: PPClientSocketEventMap[K]): void;
+  off(event: string, listener: (payload: unknown) => void): void;
+  off(event: string, listener: EventHandler): void {
+    const set = this.listeners.get(event);
     if (set) {
       set.delete(listener as EventHandler);
-      if (set.size === 0) this.listeners.delete(key);
+      if (set.size === 0) this.listeners.delete(event);
     }
   }
 
@@ -239,7 +440,26 @@ class PPClientSocketImpl implements PPClientSocket {
 
 // ---- PPServer ----
 
-export class PPServer {
+/**
+ * @template TClientEvents  Events the server receives from clients (client → server payload shapes).
+ * @template TServerEvents  Events the server sends to clients (server → client payload shapes).
+ *
+ * @example
+ * ```ts
+ * interface ClientEvents { move: { x: number; y: number } }
+ * interface ServerEvents { state: GameState; chat: string }
+ *
+ * const server = new PPServer<ClientEvents, ServerEvents>({ port: 3000 });
+ * server.on("connection", (socket) => {
+ *   socket.on("move", (data) => { ... });  // data: { x: number; y: number }
+ *   socket.emit("chat", "Hello!");          // type-checked
+ * });
+ * ```
+ */
+export class PPServer<
+  TClientEvents extends Record<string, unknown> = Record<string, unknown>,
+  TServerEvents extends Record<string, unknown> = Record<string, unknown>,
+> {
   private wss: WebSocketServer;
   private mode: PPMode;
   private registry?: PPSchemaRegistry;
@@ -275,6 +495,8 @@ export class PPServer {
     rateLimit: PPRateLimitConfig;
   };
 
+  private readonly encodeOpts: EncodeOptions;
+
   constructor(options: PPServerOptions) {
     this.mode = options.mode ?? "chat";
     this.registry = options.registry;
@@ -294,6 +516,11 @@ export class PPServer {
     const compression: PPCompressionConfig = options.compression ?? {};
 
     this.config = { heartbeat, compression, rateLimit };
+
+    // Compression encode options — computed once, passed to every encodeFrame call
+    this.encodeOpts = compression.algorithm !== "none" && (compression.threshold !== undefined || compression.algorithm === "deflate")
+      ? { compress: true, compressionThreshold: compression.threshold ?? 1024 }
+      : {};
 
     // Security config
     this.maxConnectionsPerIp = options.maxConnectionsPerIp ?? 50;
@@ -331,14 +558,15 @@ export class PPServer {
       port: options.port,
       host: options.host,
       maxPayload,
+      perMessageDeflate: false, // PP uses frame-level compression — disable WS-level to avoid conflict
       ...(verifyClient ? { verifyClient } : {}),
     });
     this.log.info(`Server starting on port ${options.port} (maxPayload: ${maxPayload})`);
 
-    // Anonymous telemetry — fire-and-forget (opt-out: PAINDA_TELEMETRY_DISABLED=1)
-    sendTelemetryPing();
-
-    this.wss.on("connection", async (ws: WebSocket, req) => {
+    /* // Anonymous telemetry — fire-and-forget (opt-out: PAINDA_TELEMETRY_DISABLED=1)
+    if (!process.env.PAINDA_TELEMETRY_DISABLED) {
+      sendTelemetryPing().catch(() => {});
+    } */ this.wss.on("connection", async (ws: WebSocket, req) => {
       // Security: IP-based connection rate limiting
       const ip = req.headers["x-forwarded-for"]?.toString().split(",")[0].trim()
         ?? req.socket.remoteAddress ?? "unknown";
@@ -358,6 +586,7 @@ export class PPServer {
       const recoveryOffset = parseInt(url.searchParams.get("pp_offset") ?? "-1", 10);
 
       const client = new PPClientSocketImpl(ws, this.mode, this.registry, recoverySid ?? undefined, this.maxDecompressedSize);
+      client._attachContext({ adapter: this.adapter, clients: this.clients, mode: this.mode, registry: this.registry, encodeOpts: this.encodeOpts });
       this.clients.set(client.id, client);
       this.log.debug("Client connected:", client.id);
 
@@ -456,6 +685,9 @@ export class PPServer {
         // Ack responses
         if (msg.type === "__pp_ack") {
           const { ackId, args } = msg.payload as { ackId: number; args: any[] };
+          // Resolve timeout-based ack (socket.timeout().emit())
+          if (client._resolveTimeoutAck(ackId, args ?? [])) return;
+          // Resolve namespace ack
           const nsName = (msg as any).__ns ?? "/";
           const ns = this.namespaces.get(nsName);
           if (ns) {
@@ -489,12 +721,18 @@ export class PPServer {
 
         const nsSocket = ns.getSocket(client.id);
         if (nsSocket) nsSocket.emit(msg.type, msg);
+
+        // Fire typed event directly on socket (socket.on("chat", handler) pattern)
+        if (!msg.type.startsWith("__pp_")) {
+          client._emit(msg.type, msg.payload);
+        }
       });
 
       client.on("close", async () => {
         this.log.debug("Client disconnected:", client.id);
         this.clients.delete(client.id);
         this.rateLimiter?.remove(client.id);
+        void client._leaveAllAdapterRooms();
 
         // Security: Decrement IP connection count
         if (this.maxConnectionsPerIp > 0) {
@@ -613,6 +851,7 @@ export class PPServer {
   }
 
   hasPlugin(name: string): boolean { return this.pluginManager.has(name); }
+  getPluginNames(): string[] { return this.pluginManager.getNames(); }
 
   getPlugin<T = unknown>(name: string): T | undefined {
     return this.pluginManager.getPluginApi<T>(name);
@@ -647,23 +886,47 @@ export class PPServer {
   deleteRoom(id: string): boolean { return this.roomManager.delete(id); }
   getRoomIds(): string[] { return this.roomManager.getRoomIds(); }
 
-  // ---- to(room).emit() — Socket.io-style API ----
+  // ---- to(room) / in(room) / except(room) — Socket.io-style API ----
 
-  to(roomId: string): { emit: <T>(type: string, payload: T) => void; broadcast: (msg: PPMessage, excludeId?: string) => void } {
-    const room = this.roomManager.get(roomId);
-    return {
-      emit: <T>(type: string, payload: T) => {
-        if (room) room.broadcast({ type, payload }, undefined);
-      },
-      broadcast: (msg: PPMessage, excludeId?: string) => {
-        if (room) room.broadcast(msg, excludeId);
-      },
-    };
+  /**
+   * Broadcast to all sockets in the specified room.
+   * Also checks PPTypedRoom if a generic adapter room is not found.
+   * @example server.to("game-1").emit("update", delta)
+   */
+  to(roomId: string | string[]): PPServerBroadcastTarget {
+    const rooms = Array.isArray(roomId) ? roomId : [roomId];
+    return new PPServerRoomBroadcaster(
+      { adapter: this.adapter, clients: this.clients, mode: this.mode, registry: this.registry, encodeOpts: this.encodeOpts },
+      rooms,
+    );
+  }
+
+  /**
+   * Alias for `to()` — matches Socket.io's `io.in("room")` pattern.
+   * @example server.in("game-1").fetchSockets()
+   */
+  in(roomId: string | string[]): PPServerBroadcastTarget {
+    return this.to(roomId);
+  }
+
+  /**
+   * Broadcast to ALL connected clients EXCEPT those in the specified room(s).
+   * @example server.except("admins").emit("announcement", msg)
+   */
+  except(roomId: string | string[]): PPServerBroadcastTarget {
+    const rooms = Array.isArray(roomId) ? roomId : [roomId];
+    return new PPServerRoomBroadcaster(
+      { adapter: this.adapter, clients: this.clients, mode: this.mode, registry: this.registry, encodeOpts: this.encodeOpts },
+      [],
+      rooms,
+      true,
+    );
   }
 
   // ---- Client Query API ----
 
   getClient(id: string): PPClientSocketImpl | undefined { return this.clients.get(id); }
+  getClients(): PPClientSocket[] { return [...this.clients.values()]; }
 
   getClientsByTag(key: string, value: string): PPClientSocketImpl[] {
     const result: PPClientSocketImpl[] = [];
@@ -674,7 +937,7 @@ export class PPServer {
   }
 
   broadcastToTag<T = unknown>(key: string, value: string, message: PPMessage<T>, exclude?: PPClientSocket): void {
-    const frame = encodeFrame(this.mode, message as PPMessage, this.registry);
+    const frame = encodeFrame(this.mode, message as PPMessage, this.registry, this.encodeOpts);
     for (const [, client] of this.clients) {
       if (exclude && client.id === exclude.id) continue;
       if (client.hasTag(key, value)) client.sendRaw(frame);
@@ -685,7 +948,7 @@ export class PPServer {
 
   broadcast<T = unknown>(message: PPMessage<T>, exclude?: PPClientSocket): void {
     const transformed = this.pluginManager.dispatchSend(exclude as PPClientSocket, message as PPMessage);
-    const frame = encodeFrame(this.mode, transformed, this.registry);
+    const frame = encodeFrame(this.mode, transformed, this.registry, this.encodeOpts);
     for (const [id, client] of this.clients) {
       if (exclude && id === exclude.id) continue;
       client.sendRaw(frame);
@@ -694,7 +957,7 @@ export class PPServer {
   }
 
   broadcastVolatile<T = unknown>(message: PPMessage<T>, exclude?: PPClientSocket): void {
-    const frame = encodeFrame(this.mode, message as PPMessage, this.registry);
+    const frame = encodeFrame(this.mode, message as PPMessage, this.registry, this.encodeOpts);
     for (const [id, client] of this.clients) {
       if (exclude && id === exclude.id) continue;
       try { client.sendRaw(frame); } catch { /* volatile */ }
@@ -781,27 +1044,34 @@ export class PPServer {
 
   // ---- Event System ----
 
-  on<K extends keyof PPServerEventMap>(event: K, listener: PPServerEventMap[K]): void {
-    const key = event as string;
-    if (!this.listeners.has(key)) this.listeners.set(key, new Set());
-    this.listeners.get(key)!.add(listener as EventHandler);
+  on<K extends keyof PPServerEventMap<TClientEvents, TServerEvents>>(
+    event: K,
+    listener: PPServerEventMap<TClientEvents, TServerEvents>[K],
+  ): void {
+    if (!this.listeners.has(event as string)) this.listeners.set(event as string, new Set());
+    this.listeners.get(event as string)!.add(listener as EventHandler);
   }
 
   /** Listen once, then auto-remove. */
-  once<K extends keyof PPServerEventMap>(event: K, listener: PPServerEventMap[K]): void {
+  once<K extends keyof PPServerEventMap<TClientEvents, TServerEvents>>(
+    event: K,
+    listener: PPServerEventMap<TClientEvents, TServerEvents>[K],
+  ): void {
     const wrapped = ((...args: unknown[]) => {
       this.off(event, wrapped as any);
       (listener as EventHandler)(...args);
-    }) as PPServerEventMap[K];
+    }) as PPServerEventMap<TClientEvents, TServerEvents>[K];
     this.on(event, wrapped);
   }
 
-  off<K extends keyof PPServerEventMap>(event: K, listener: PPServerEventMap[K]): void {
-    const key = event as string;
-    const set = this.listeners.get(key);
+  off<K extends keyof PPServerEventMap<TClientEvents, TServerEvents>>(
+    event: K,
+    listener: PPServerEventMap<TClientEvents, TServerEvents>[K],
+  ): void {
+    const set = this.listeners.get(event as string);
     if (set) {
       set.delete(listener as EventHandler);
-      if (set.size === 0) this.listeners.delete(key);
+      if (set.size === 0) this.listeners.delete(event as string);
     }
   }
 

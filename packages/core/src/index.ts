@@ -1,96 +1,30 @@
-// Frame encoding/decoding
-export {
-  encodeFrame,
-  decodeFrame,
-  PP_MAGIC,
-  PP_VERSION,
-  PP_VERSION_1,
-  PP_VERSION_2,
-  HEADER_SIZE,
-  HEADER_SIZE_V2,
-} from "./frame.js";
-export type { EncodeOptions } from "./frame.js";
+// --------------------------------------------------------------------------
+// This is the main entry point for NODE.JS environments.
+// It includes server-side logic and may pull in Node-specific dependencies.
+// For BROWSERS, use "@painda/core/frame" or "@painda/core/schema" etc.
+// --------------------------------------------------------------------------
 
-// Server & Client
+// Re-export common logic
+export * from "./common/frame.js";
+export * from "./common/schema.js";
+export * from "./common/serializers.js";
+export * from "./common/namespace.js";
+export * from "./common/middleware.js";
+export * from "./common/transport.js";
+export * from "./common/recovery.js";
+export * from "./common/adapter.js";
+export * from "./common/errors.js";
+export * from "./common/logger.js";
+export * from "./common/plugin.js";
+export { ppMetricsPlugin } from "./common/metrics-plugin.js";
+export type { PPMetricsSnapshot, PPMetricsAPI, PPMetricsOptions } from "./common/metrics-plugin.js";
+export * from "./common/typed-room.js";
+export * from "./common/presence.js";
+export * from "./common/types.js";
+
+// Node-only: PPServer
 export { PPServer } from "./server.js";
-export { PPClient } from "./client.js";
-export type { PPClientAckCallback, PPClientSendOptions } from "./client.js";
 
-// Schema
-export { PPSchemaRegistry } from "./schema.js";
-export type { PPSchema } from "./schema.js";
+// Node-only: Telemetry (disabled for now)
+// export { sendTelemetryPing } from "./node/telemetry.js";
 
-// Serializers
-export {
-  jsonSerializer,
-  stringSerializer,
-  bufferSerializer,
-  structSerializer,
-  mixedSerializer,
-} from "./serializers.js";
-export type { StructField } from "./serializers.js";
-
-// Namespaces
-export { PPNamespace, PPNamespacedSocket } from "./namespace.js";
-export type { PPAckMessage, PPAckCallback, PPSendOptions } from "./namespace.js";
-
-// Middleware
-export { PPMiddlewarePipeline } from "./middleware.js";
-export type { PPConnectionMiddleware, PPMessageMiddleware } from "./middleware.js";
-
-// Transport
-export { PollingTransport, PPTransportManager } from "./transport.js";
-export type { PPTransport, PPTransportType, PPTransportEvents } from "./transport.js";
-
-// Recovery
-export { PPRecoveryManager } from "./recovery.js";
-export type { RecoveryOptions } from "./recovery.js";
-
-// Adapter
-export { InMemoryAdapter } from "./adapter.js";
-export type { PPAdapter } from "./adapter.js";
-
-// Errors
-export { PPError } from "./errors.js";
-export type { PPErrorCode, PPErrorContext } from "./errors.js";
-
-// Logger
-export { createLogger, silentLogger } from "./logger.js";
-export type { PPLogger, PPLogLevel, PPLogTransport, PPLoggerOptions } from "./logger.js";
-
-// Plugin System
-export { PPPluginManager } from "./plugin.js";
-export type { PPPlugin, PPPluginContext, PPPluginHooks } from "./plugin.js";
-
-// Typed Rooms
-export { PPTypedRoom, PPRoomManager } from "./typed-room.js";
-export type { TypedRoomOptions, PPDiffAlgorithm, PPRoomFullPolicy } from "./typed-room.js";
-
-// Presence
-export { PPPresence } from "./presence.js";
-export type { PresenceData, PresenceEntry, PresenceOptions } from "./presence.js";
-
-// Telemetry
-export { sendTelemetryPing } from "./telemetry.js";
-
-// Types
-export type {
-  PPMode,
-  PPModeId,
-  PPMessage,
-  PPFrameHeader,
-  PPDecodedFrame,
-  PPServerOptions,
-  PPClientOptions,
-  PPServerEventMap,
-  PPClientEventMap,
-  PPClientSocket,
-  PPClientSocketEventMap,
-  PPTypedMessageHandler,
-  PPCompressionConfig,
-  PPHeartbeatConfig,
-  PPRateLimitConfig,
-  PPRateLimitStrategy,
-  PPReconnectConfig,
-  PPReconnectStrategy,
-} from "./types.js";

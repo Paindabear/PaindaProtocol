@@ -1,0 +1,32 @@
+{
+  "name": "@painda/admin",
+  "version": "0.1.1",
+  "description": "Lightweight admin dashboard for PaindaProtocol — monitoring, metrics, connected clients",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@painda/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@painda/core": "file:../core",
+    "@types/node": "^22",
+    "typescript": "^5"
+  },
+  "author": "Painda",
+  "license": "MIT"
+}

@@ -52,13 +52,16 @@
 
 | Package | Description | Version |
 |---------|-------------|---------|
-| [`@painda/core`](https://www.npmjs.com/package/@painda/core) | Binary engine, Server, Client, Namespaces, Middleware, Plugins, Rooms, Presence | [![npm](https://img.shields.io/npm/v/@painda/core)](https://www.npmjs.com/package/@painda/core) |
-| [`@painda/gaming`](https://www.npmjs.com/package/@painda/gaming) | Delta Engine — state sync with binary diffs | [![npm](https://img.shields.io/npm/v/@painda/gaming)](https://www.npmjs.com/package/@painda/gaming) |
-| [`@painda/chat`](https://www.npmjs.com/package/@painda/chat) | Rooms, direct messages, broadcasting | [![npm](https://img.shields.io/npm/v/@painda/chat)](https://www.npmjs.com/package/@painda/chat) |
+| [`@painda/core`](https://www.npmjs.com/package/@painda/core) | Binary engine, Server, Namespaces, Middleware, Plugins, Rooms, Presence | [![npm](https://img.shields.io/npm/v/@painda/core)](https://www.npmjs.com/package/@painda/core) |
+| [`@painda/client`](https://www.npmjs.com/package/@painda/client) | Universal browser client with binary schema support & React hooks | [![npm](https://img.shields.io/npm/v/@painda/client)](https://www.npmjs.com/package/@painda/client) |
+| [`@painda/gaming`](https://www.npmjs.com/package/@painda/gaming) | Delta Engine — high-frequency state sync with binary diffs | [![npm](https://img.shields.io/npm/v/@painda/gaming)](https://www.npmjs.com/package/@painda/gaming) |
+| [`@painda/chat`](https://www.npmjs.com/package/@painda/chat) | Rooms, direct messages, and broadcasting utilities | [![npm](https://img.shields.io/npm/v/@painda/chat)](https://www.npmjs.com/package/@painda/chat) |
+| [`@painda/admin`](https://www.npmjs.com/package/@painda/admin) | Real-time monitoring and management dashboard | [![npm](https://img.shields.io/npm/v/@painda/admin)](https://www.npmjs.com/package/@painda/admin) |
+| [`@painda/redis`](https://www.npmjs.com/package/@painda/redis) | Horizontal scaling adapter for distributed clusters | [![npm](https://img.shields.io/npm/v/@painda/redis)](https://www.npmjs.com/package/@painda/redis) |
 | [`@painda/video`](https://www.npmjs.com/package/@painda/video) | WebRTC signaling for low-latency P2P calls | [![npm](https://img.shields.io/npm/v/@painda/video)](https://www.npmjs.com/package/@painda/video) |
 | [`@painda/auth`](https://www.npmjs.com/package/@painda/auth) | Token-based authentication middleware | [![npm](https://img.shields.io/npm/v/@painda/auth)](https://www.npmjs.com/package/@painda/auth) |
 | [`@painda/persistence`](https://www.npmjs.com/package/@painda/persistence) | Auto-persist messages to your DB with metrics | [![npm](https://img.shields.io/npm/v/@painda/persistence)](https://www.npmjs.com/package/@painda/persistence) |
-| [`@painda/testing`](https://www.npmjs.com/package/@painda/testing) | Test utilities for PP apps | [![npm](https://img.shields.io/npm/v/@painda/testing)](https://www.npmjs.com/package/@painda/testing) |
+| [`@painda/testing`](https://www.npmjs.com/package/@painda/testing) | Comprehensive test utilities for PP applications | [![npm](https://img.shields.io/npm/v/@painda/testing)](https://www.npmjs.com/package/@painda/testing) |
 
 ---
 

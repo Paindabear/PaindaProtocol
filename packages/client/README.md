@@ -1,12 +1,16 @@
-# @painda/client
+# 🐼 @painda/client
 
-Browser-compatible client SDK for the PaindaProtocol.
+**The versatile, browser-compatible SDK for the PaindaProtocol.**
 
-## Features
-- **JSON ↔ Binary Bridge**: Send JSON on the client, goes as binary over the wire, decoded by the Painda Server.
-- **Auto Reconnect**: Configurable exponential and linear backoff reconnection strategies.
-- **React Hook (`usePP`)**: Simple and reactive connection management in React.
-- **Message Queueing**: Queues messages while offline and flush upon reconnection.
+`@painda/client` is the official client-side module for interacting with PaindaProtocol servers. It provides a familiar, Socket.io-like API while leveraging the full power of transparent binary encoding and state synchronization.
+
+### ⚡ Highlights
+
+- **Binary Schema Support**: Use custom binary encoders/decoders for ultra-low overhead.
+- **Auto Reconnect**: Robust reconnection strategies with exponential and linear backoff.
+- **React Ready**: Includes a first-class `usePP` hook for seamless React integration.
+- **Message Queueing**: Automatically queues messages while offline and flushes on reconnect.
+- **Delta Sync**: Built-in support for receiving and applying binary state diffs.
 
 ## Installation
 

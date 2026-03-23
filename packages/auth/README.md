@@ -1,10 +1,15 @@
-# @painda/auth
+# 🐼 @painda/auth
 
-**Authentication middleware** for PaindaProtocol.
+**Secure, token-based authentication middleware for PaindaProtocol.**
 
-Token-based auth with configurable validators, guest access, and timeout handling.
+`@painda/auth` provides a robust, customizable authentication layer for your real-time applications. It supports JWT, API keys, and custom validation logic with built-in protection against slow-loris auth attacks and unauthorized connections.
 
-Part of the [PaindaProtocol](https://pp.painda.tools) ecosystem.
+### ⚡ Highlights
+
+- **Pluggable Validators**: Use any async function to verify tokens (JWT, DB lookup, etc.).
+- **Automatic Enforcement**: Protects your server by enforcing auth before any message handling.
+- **Timeout Protection**: Automatically disconnects clients that fail to authenticate within a window.
+- **Guest Support**: Configurable "allow-guest" mode for public rooms.
 
 ## Installation
 

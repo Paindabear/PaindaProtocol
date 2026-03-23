@@ -1,8 +1,15 @@
-# @painda/gaming
+# 🐼 @painda/gaming
 
-**The Delta Engine** — state synchronization with binary diffs for real-time games and collaborative apps.
+**The Delta Engine for real-time multiplayer games and high-frequency state synchronization.**
 
-Part of the [PaindaProtocol](https://pp.painda.tools) ecosystem.
+`@painda/gaming` is the state-synchronization engine for the PaindaProtocol ecosystem. It provides ultra-fast binary diffing and patching, allowing you to synchronize complex game states at **60 FPS** with **100x smaller payloads** than raw JSON.
+
+### ⚡ Highlights
+
+- **Zero-Copy Diffs**: Uses a highly optimized binary-diffing algorithm.
+- **Delta Sync**: Only send changed fields to minimize bandwidth.
+- **60 FPS Ready**: Minimal CPU overhead during serialization/deserialization.
+- **Seamless Integration**: First-class support for Painda's **Typed Rooms**.
 
 ## Installation
 

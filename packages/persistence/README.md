@@ -1,10 +1,15 @@
-# @painda/persistence
+# 🐼 @painda/persistence
 
-**Database bridging middleware** for PaindaProtocol.
+**High-performance database bridging middleware for PaindaProtocol.**
 
-Automatically persists real-time messages to your database with batching and metrics.
+`@painda/persistence` ensures your real-time data is safely stored without sacrificing performance. It uses intelligent batching and background flushing to persist messages, providing a seamless bridge between volatile WebSocket streams and your permanent data storage.
 
-Part of the [PaindaProtocol](https://pp.painda.tools) ecosystem.
+### ⚡ Highlights
+
+- **Batch Persistence**: Buffers messages and flushes them in bulk to reduce DB pressure.
+- **Pluggable Adapters**: Easily connect to any database (SQL, NoSQL, etc.) via a simple interface.
+- **Real-Time Metrics**: Monitor persistence health, throughput, and error rates in real-time.
+- **Silent Recovery**: Built-in error handling to ensure server stability even during DB downtime.
 
 ## Installation
 

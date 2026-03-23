@@ -1,6 +1,6 @@
 {
   "name": "@painda/redis",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Redis adapter for PaindaProtocol — binary-format pub/sub for horizontal scaling",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,10 +23,10 @@
     "ioredis": "^5.3.2"
   },
   "peerDependencies": {
-    "@painda/core": "^0.1.0"
+    "@painda/core": "^0.1.6"
   },
   "devDependencies": {
-    "@painda/core": "file:../core",
+    "@painda/core": "^0.1.6",
     "@types/node": "^22",
     "typescript": "^5"
   },

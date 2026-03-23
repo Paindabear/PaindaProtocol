@@ -1,10 +1,15 @@
-# @painda/video
+# 🐼 @painda/video
 
-**WebRTC signaling server module** for PaindaProtocol.
+**Reliable, low-latency WebRTC signaling for PaindaProtocol.**
 
-Handles SDP offer/answer exchange and ICE candidate relay for peer-to-peer video/audio calls.
+`@painda/video` provides a robust signaling layer for peer-to-peer communication. It handles complex SDP negotiations and ICE candidate relaying, allowing you to integrate high-quality video and audio calls directly into your real-time applications with minimal setup.
 
-Part of the [PaindaProtocol](https://pp.painda.tools) ecosystem.
+### ⚡ Highlights
+
+- **P2P Signaling**: Optimized for NAT traversal and low-latency peer discovery.
+- **Room-Based Calling**: Integrated support for call rooms and multi-peer discovery.
+- **Protocol-First**: Leverages Painda's binary framing for lightweight signaling overhead.
+- **Developer Friendly**: Simplified API for offer/answer and candidate exchange.
 
 ## Installation
 

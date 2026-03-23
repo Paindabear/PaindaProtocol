@@ -1,45 +1,45 @@
 {
-    "name": "@painda/auth",
-    "version": "0.1.3",
-    "description": "PaindaProtocol authentication middleware and JWT validators",
-    "type": "module",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "import": "./dist/index.js",
-            "types": "./dist/index.d.ts"
-        }
-    },
-    "files": [
-        "dist"
-    ],
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "clean": "rm -rf dist"
-    },
-    "keywords": [
-        "websocket",
-        "auth",
-        "jwt",
-        "middleware",
-        "painda",
-        "authentication"
-    ],
-    "author": "Painda",
-    "homepage": "https://pp.painda.tools",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/Paindabear/PaindaProtocol"
-    },
-    "peerDependencies": {
-        "@painda/core": "^0.1.0"
-    },
-    "devDependencies": {
-        "@painda/core": "^0.1.0",
-        "typescript": "^5.0.0",
-        "@types/node": "^20.0.0"
-    },
-    "license": "MIT"
+  "name": "@painda/auth",
+  "version": "0.1.4",
+  "description": "PaindaProtocol authentication middleware and JWT validators",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "websocket",
+    "auth",
+    "jwt",
+    "middleware",
+    "painda",
+    "authentication"
+  ],
+  "author": "Painda",
+  "homepage": "https://pp.painda.tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Paindabear/PaindaProtocol"
+  },
+  "peerDependencies": {
+    "@painda/core": "^0.1.6"
+  },
+  "devDependencies": {
+    "@painda/core": "^0.1.6",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "license": "MIT"
 }

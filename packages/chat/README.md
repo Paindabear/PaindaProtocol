@@ -1,8 +1,15 @@
-# @painda/chat
+# 🐼 @painda/chat
 
-**Room and direct messaging module** for PaindaProtocol.
+**High-level room and direct messaging management for PaindaProtocol.**
 
-Part of the [PaindaProtocol](https://pp.painda.tools) ecosystem.
+`@painda/chat` simplifies the creation of real-time communication features like global rooms, selective broadcasting, and direct messaging between clients. It is optimized for both simple chat apps and complex multiplayer lobbies.
+
+### ⚡ Highlights
+
+- **Room Management**: Easy join/leave logic with automatic cleanup on disconnect.
+- **Selective Broadcasting**: Send messages to entire rooms with an optional sender exclusion.
+- **Direct Messaging**: One-to-one communication between clients by ID.
+- **Scalability Ready**: Designed to work seamlessly with Painda's Redis Adapters for horizontal scaling.
 
 ## Installation
 

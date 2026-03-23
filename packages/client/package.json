@@ -1,6 +1,6 @@
 {
   "name": "@painda/client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Lightweight, browser-friendly client for PaindaProtocol",
   "type": "module",
   "main": "./dist/index.js",
@@ -24,7 +24,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@painda/core": "file:../core"
+    "@painda/core": "^0.1.6"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",

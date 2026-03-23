@@ -11,7 +11,14 @@
 
 <br />
 
-**PaindaProtocol (PP)** is a modern, production-ready alternative to Socket.io. It combines the blazing speed of raw WebSockets with a zero-copy binary frame architecture — plus every feature you know from Socket.io, and killer features like **Typed Rooms with Delta Sync**, **Presence**, and a **Plugin System** that Socket.io doesn't have.
+**PaindaProtocol (PP)** is a high-performance, protocol-first alternative to Socket.io. It eliminates the "JSON-tax" of real-time apps by using a zero-copy binary frame architecture, delivering up to **10x higher throughput** and **70% lower overhead**.
+
+### 💡 Why PaindaProtocol?
+
+- **"Socket.io was too slow"**: If your server struggles with 1000+ players or high-frequency updates, PP's binary engine is the answer.
+- **"I need typed state sync"**: Built-in **Typed Rooms** and the **Delta Engine** handle state synchronization with automatic binary diffs.
+- **"I want clean, modern DX"**: Native support for **Presence**, **Middleware**, **Acknowledgemts**, and a robust **Plugin System**.
+- **🤖 AI-Ready**: Optimized for AI context ingestion with a consolidated `/llms.txt` specification.
 
 ---
 

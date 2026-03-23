@@ -10,7 +10,8 @@
  *   cleanup();
  */
 
-import { PPServer, PPClient, type PPServerOptions, type PPMessage } from "@painda/core";
+import { PPServer, type PPServerOptions, type PPMessage } from "@painda/core";
+import { PPClient } from "@painda/client";
 
 export interface TestEnvOptions {
     /** Override server options. Port defaults to random. */

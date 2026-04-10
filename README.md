@@ -61,8 +61,22 @@
 | [`@painda/redis`](https://www.npmjs.com/package/@painda/redis) | Horizontal scaling adapter for distributed clusters | [![npm](https://img.shields.io/npm/v/@painda/redis)](https://www.npmjs.com/package/@painda/redis) |
 | [`@painda/video`](https://www.npmjs.com/package/@painda/video) | WebRTC signaling for low-latency P2P calls | [![npm](https://img.shields.io/npm/v/@painda/video)](https://www.npmjs.com/package/@painda/video) |
 | [`@painda/auth`](https://www.npmjs.com/package/@painda/auth) | Token-based authentication middleware | [![npm](https://img.shields.io/npm/v/@painda/auth)](https://www.npmjs.com/package/@painda/auth) |
-| [`@painda/persistence`](https://www.npmjs.com/package/@painda/persistence) | Auto-persist messages to your DB with metrics | [![npm](https://img.shields.io/npm/v/@painda/persistence)](https://www.npmjs.com/package/@painda/persistence) |
 | [`@painda/testing`](https://www.npmjs.com/package/@painda/testing) | Comprehensive test utilities for PP applications | [![npm](https://img.shields.io/npm/v/@painda/testing)](https://www.npmjs.com/package/@painda/testing) |
+| [`@painda/persistence`](https://www.npmjs.com/package/@painda/persistence) | Auto-persist messages to your DB with metrics | [![npm](https://img.shields.io/npm/v/@painda/persistence)](https://www.npmjs.com/package/@painda/persistence) |
+
+---
+
+## 🌐 Multi-Language Support (Roadmap)
+
+We are currently expanding PaindaProtocol beyond the Node.js ecosystem. Our goal is to provide high-performance, native clients for modern high-performance stacks.
+
+- **🐍 Python (Beta)**: Asynchronous client for AI integration, data science, and backend services.
+- **🎮 C# (Coming Soon)**: Optimized for **Unity** and **Godot** with `Span<T>` and zero-copy semantics.
+- **⚡ C++ (Coming Soon)**: Ultra-low latency core SDK for embedded systems and performance-critical clusters.
+
+*Interested in early access? Follow the [Protocol Specification](docs/protocol/WIRE_FORMAT_SPEC.md) or contribute on GitHub.*
+
+---
 
 ---
 

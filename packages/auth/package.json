@@ -1,6 +1,6 @@
 {
   "name": "@painda/auth",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "PaindaProtocol authentication middleware and JWT validators",
   "type": "module",
   "main": "./dist/index.js",
@@ -33,13 +33,14 @@
     "type": "git",
     "url": "https://github.com/Paindabear/PaindaProtocol"
   },
-  "peerDependencies": {
-    "@painda/core": "^0.1.7"
-  },
+  "peerDependencies": {},
   "devDependencies": {
-    "@painda/core": "^0.1.7",
+    "@painda/core": "^0.1.8",
     "typescript": "^5.0.0",
     "@types/node": "^20.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@painda/core": "^0.1.8"
+  }
 }

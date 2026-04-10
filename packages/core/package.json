@@ -1,6 +1,6 @@
 {
   "name": "@painda/core",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "The high-performance binary backbone for real-time apps",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@painda/chat",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Room and direct messaging module for PaindaProtocol",
   "type": "module",
   "main": "./dist/index.js",
@@ -33,12 +33,13 @@
     "type": "git",
     "url": "https://github.com/Paindabear/PaindaProtocol"
   },
-  "peerDependencies": {
-    "@painda/core": "^0.1.7"
-  },
+  "peerDependencies": {},
   "devDependencies": {
-    "@painda/core": "^0.1.7",
+    "@painda/core": "^0.1.8",
     "typescript": "^5"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@painda/core": "^0.1.8"
+  }
 }

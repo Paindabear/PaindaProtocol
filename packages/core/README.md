@@ -7,7 +7,9 @@
 ### ⚡ Highlights
 
 - **Zero-Copy Performance**: Native `DataView` encoding on the wire.
-- **Protocol-First**: Built-around binary schemas and typed messages.
+- **Protocol-First**: Built around binary schemas and typed messages.
+- **Virtual Clients**: Headless, in-memory client injection for bots/testing (0ms latency).
+- **Horizontal Scaling**: Native Pub/Sub adapter support (Redis/Postgres) for multi-node deployments.
 - **Plugin System**: Robust lifecycle hooks for easy extensibility.
 - **Standard Features**: Presence, Namespaces, Middleware, and Connection Recovery included.
 
@@ -52,6 +54,26 @@ client.once('open', () => {
 client.on('message', (msg) => {
   console.log('Server says:', msg.payload);
 });
+```
+
+### Virtual Clients (Headless Bots)
+
+Inject a headless client directly into the server pipeline for testing or in-process bots with zero network latency.
+
+```typescript
+import { PPServer, PPVirtualClient } from '@painda/core';
+
+const server = new PPServer({ port: 3000 });
+const bot = new PPVirtualClient();
+
+// Inject directly into server logic
+server.inject(bot);
+
+bot.on('message', (msg) => {
+  console.log('Bot received:', msg.payload);
+});
+
+bot.emit('bot:ready', { data: '...' });
 ```
 
 ## Features

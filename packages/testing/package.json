@@ -1,6 +1,6 @@
 {
   "name": "@painda/testing",
-  "version": "0.1.4",
+  "version": "0.1.7",
   "description": "Test utilities for PaindaProtocol",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,12 +30,12 @@
     "url": "https://github.com/Paindabear/PaindaProtocol"
   },
   "peerDependencies": {
-    "@painda/core": "^0.1.6",
-    "@painda/client": "^0.1.2"
+    "@painda/core": "^0.1.7",
+    "@painda/client": "^0.1.7"
   },
   "devDependencies": {
-    "@painda/core": "^0.1.6",
-    "@painda/client": "^0.1.2",
+    "@painda/core": "^0.1.7",
+    "@painda/client": "^0.1.7",
     "typescript": "^5.4.0"
   },
   "license": "MIT"

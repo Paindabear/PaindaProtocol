@@ -12,6 +12,10 @@
     },
     "./browser": {
       "import": "./dist/index.browser.js"
+    },
+    "./react": {
+      "import": "./dist/react.js",
+      "types": "./dist/react.d.ts"
     }
   },
   "files": [
@@ -25,6 +29,14 @@
   },
   "dependencies": {
     "@painda/core": "^0.1.6"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "@painda/gaming": "*"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "@painda/gaming": { "optional": true }
   },
   "devDependencies": {
     "esbuild": "^0.24.0",

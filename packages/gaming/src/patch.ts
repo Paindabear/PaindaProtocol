@@ -73,3 +73,31 @@ export function patch(state: any, delta: any): any {
 
     return state;
 }
+
+/**
+ * Immutable variant of patch(). Creates a deep clone before applying the delta,
+ * so the returned object is always a new reference.
+ *
+ * This is essential for React's state management, where mutating the previous
+ * state object in-place will NOT trigger a re-render.
+ *
+ * @example
+ * ```tsx
+ * import { patchImmutable } from "@painda/gaming";
+ *
+ * client.on("game:delta", (delta) => {
+ *   setGameState(prev => patchImmutable(prev, delta));
+ * });
+ * ```
+ *
+ * @param state The current state (will NOT be modified)
+ * @param delta The delta patch containing changes
+ * @returns A new object with the delta applied
+ */
+export function patchImmutable<T>(state: T, delta: any): T {
+    if (delta === undefined) {
+        return state;
+    }
+    const clone = structuredClone(state);
+    return patch(clone, delta) as T;
+}

@@ -46,10 +46,14 @@ server.broadcast({ type: 'delta', payload: delta });
 ## API
 
 ### `diff(prev, next)`
-Returns only the changed fields between two objects.
+Returns only the changed fields between two objects. Uses Myers O(ND) algorithm for arrays.
 
 ### `patch(target, delta)`
-Applies a delta to an existing object (mutates in place).
+Applies a delta to an existing object. **Mutates in place** for performance.
+
+### `patchImmutable(state, delta)` _(New)_
+Immutable variant of `patch()`. Creates a deep clone before applying the delta.
+**Use this in React** — it returns a new reference so `setState` detects the change.
 
 ### `StateManager`
 High-level wrapper that tracks state and produces diffs.
@@ -58,9 +62,34 @@ High-level wrapper that tracks state and produces diffs.
 - `getDelta()` — get diff since last call
 - `getState()` — get current full state
 
+---
+
+## ⚠️ React Compatibility
+
+`patch()` mutates the state object **in-place**. This is intentional for performance in game loops, but it **breaks React's state detection** because the reference stays the same.
+
+```typescript
+// ❌ WRONG — React won't re-render (same reference):
+client.on("game:delta", (delta) => {
+  setGameState(prev => {
+    patch(prev, delta);  // mutates prev
+    return prev;         // same object reference → no re-render
+  });
+});
+
+// ✅ CORRECT — Use patchImmutable (new reference):
+import { patchImmutable } from "@painda/gaming";
+
+client.on("game:delta", (delta) => {
+  setGameState(prev => patchImmutable(prev, delta));
+});
+```
+
+---
+
 ## With PP Typed Rooms
 
-Use Gaming’s `diff` as the room’s diff algorithm so deltas use `PP_DELETED` for deleted keys; clients apply them with `patch`:
+Use Gaming's `diff` as the room's diff algorithm so deltas use `PP_DELETED` for deleted keys; clients apply them with `patchImmutable` (React) or `patch` (vanilla):
 
 **Server**
 
@@ -76,13 +105,23 @@ room.start();
 room.update(s => { s.score['player1'] = 10; });
 ```
 
-**Client** (apply incoming deltas)
+**Client (React)**
+
+```typescript
+import { patchImmutable } from '@painda/gaming';
+
+client.on('roomDelta', ({ room, delta }) => {
+  setGameState(prev => patchImmutable(prev, delta));
+});
+```
+
+**Client (Vanilla JS)**
 
 ```typescript
 import { patch } from '@painda/gaming';
 
 client.on('roomDelta', ({ room, delta }) => {
-  patch(localState[room], delta);
+  patch(localState[room], delta); // in-place, fast
 });
 ```
 

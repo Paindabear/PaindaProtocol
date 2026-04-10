@@ -102,8 +102,27 @@ export interface PPReconnectConfig {
 // ---- Server Options ----
 
 export interface PPServerOptions {
-  port: number;
+  /** Port to listen on. Required unless `server` is provided. */
+  port?: number;
   host?: string;
+
+  /**
+   * Attach to an existing HTTP/HTTPS server instead of creating a new one.
+   * When provided, `port` is ignored — the server will share the HTTP server's port.
+   *
+   * @example
+   * ```ts
+   * import express from "express";
+   * import { createServer } from "http";
+   * import { PPServer } from "@painda/core";
+   *
+   * const app = express();
+   * const httpServer = createServer(app);
+   * const pp = new PPServer({ server: httpServer, recovery: true });
+   * httpServer.listen(3009);
+   * ```
+   */
+  server?: import("http").Server | import("https").Server;
   mode?: PPMode;
   registry?: PPSchemaRegistry;
 
@@ -176,10 +195,40 @@ export interface PPClientOptions {
 
 // --- Broadcast targets (Socket.io-style chaining) ---
 
+import type { PPDiffAlgorithm } from "./diff.js";
+
 /** Chainable broadcaster for socket.to("room").emit() and socket.broadcast.emit() patterns. */
 export interface PPBroadcastTarget {
   emit<T = unknown>(type: string, payload: T): void;
   send<T = unknown>(message: PPMessage<T>): void;
+  
+  /** Automatically calculate diff between prev/next and emit if changes exist */
+  emitDelta<T = unknown>(type: string, prev: T, next: T, diffAlgorithm?: PPDiffAlgorithm): void;
+}
+
+/**
+ * Minimal interface for anything that can broadcast to rooms.
+ * Use this to decouple game logic from the PPServer implementation.
+ *
+ * @example
+ * ```ts
+ * class GameManager {
+ *   constructor(private broadcaster: PPBroadcastable) {}
+ *   broadcastUpdate(room: string, state: GameState) {
+ *     this.broadcaster.to(room).emit("game:state_update", state);
+ *   }
+ * }
+ *
+ * // Works with PPServer directly:
+ * const gm = new GameManager(server);
+ *
+ * // Or your own wrapper:
+ * const gm = new GameManager(myDeltaWrapper);
+ * ```
+ */
+export interface PPBroadcastable {
+  to(roomId: string | string[]): PPBroadcastTarget;
+  broadcast<T = unknown>(message: PPMessage<T>, exclude?: PPClientSocket): void;
 }
 
 /** Chainable broadcaster for server.in("room") / server.except("room") patterns. */

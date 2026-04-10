@@ -1,7 +1,9 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import crypto from "node:crypto";
+import { EventEmitter } from "events";
 import { encodeFrame, decodeFrame, type EncodeOptions } from "./common/frame.js";
 import type { PPSchemaRegistry } from "./common/schema.js";
+import type { PPVirtualClient } from "./common/virtual-client.js";
 import type {
   PPServerOptions,
   PPMessage,
@@ -26,6 +28,7 @@ import { PPPluginManager, type PPPlugin, type PPPluginContext } from "./common/p
 import { PPRoomManager, type PPTypedRoom, type TypedRoomOptions } from "./common/typed-room.js";
 import { PPPresence, type PresenceOptions } from "./common/presence.js";
 import { createLogger, type PPLogger } from "./common/logger.js";
+import { computeDiff, type PPDiffAlgorithm } from "./common/diff.js";
 // import { sendTelemetryPing } from "./common/node/telemetry.js";
 
 type EventHandler = (...args: unknown[]) => void;
@@ -50,24 +53,26 @@ class PPBroadcastOperator implements PPBroadcastTarget {
   ) {}
 
   emit<T = unknown>(type: string, payload: T): void {
-    const frame = encodeFrame(this.ctx.mode, { type, payload: payload as unknown }, this.ctx.registry, this.ctx.encodeOpts);
-    if (this.targetRoom !== null) {
-      void this.ctx.adapter.getClientsInRoom(this.targetRoom).then((ids) => {
-        for (const id of ids) {
-          if (id === this.excludeId) continue;
-          this.ctx.clients.get(id)?.sendRaw(frame);
-        }
-      });
-    } else {
-      for (const [id, client] of this.ctx.clients) {
-        if (id === this.excludeId) continue;
-        client.sendRaw(frame);
+    void this.ctx.adapter.publish("__pp_broadcast", {
+      type: "__pp_remote_emit",
+      payload: {
+        rooms: this.targetRoom !== null ? [this.targetRoom] : null,
+        excludeId: this.excludeId,
+        type,
+        emitPayload: payload
       }
-    }
+    });
   }
 
   send<T = unknown>(message: PPMessage<T>): void {
     this.emit(message.type, message.payload);
+  }
+
+  emitDelta<T = unknown>(type: string, prev: T, next: T, diffAlgorithm?: PPDiffAlgorithm): void {
+    const d = computeDiff(prev, next, diffAlgorithm ?? "deep");
+    if (d !== undefined) {
+      this.emit(type, d);
+    }
   }
 }
 
@@ -82,16 +87,27 @@ class PPServerRoomBroadcaster implements PPServerBroadcastTarget {
   ) {}
 
   emit<T = unknown>(type: string, payload: T): void {
-    void this.resolveIds().then((ids) => {
-      const frame = encodeFrame(this.ctx.mode, { type, payload: payload as unknown }, this.ctx.registry, this.ctx.encodeOpts);
-      for (const id of ids) {
-        this.ctx.clients.get(id)?.sendRaw(frame);
+    void this.ctx.adapter.publish("__pp_broadcast", {
+      type: "__pp_remote_emit",
+      payload: {
+        rooms: this.targetAll ? null : this.targetRooms,
+        exceptRooms: this.exceptRooms,
+        excludeId: null,
+        type,
+        emitPayload: payload
       }
     });
   }
 
   send<T = unknown>(message: PPMessage<T>): void {
     this.emit(message.type, message.payload);
+  }
+
+  emitDelta<T = unknown>(type: string, prev: T, next: T, diffAlgorithm?: PPDiffAlgorithm): void {
+    const d = computeDiff(prev, next, diffAlgorithm ?? "deep");
+    if (d !== undefined) {
+      this.emit(type, d);
+    }
   }
 
   async fetchSockets(): Promise<PPClientSocket[]> {
@@ -497,6 +513,93 @@ export class PPServer<
 
   private readonly encodeOpts: EncodeOptions;
 
+  /**
+   * Attach a PPServer to an existing HTTP/HTTPS server.
+   * This is the recommended way to share a port between Express/Fastify and PP.
+   *
+   * @example
+   * ```ts
+   * import express from "express";
+   * import { createServer } from "http";
+   * import { PPServer } from "@painda/core";
+   *
+   * const app = express();
+   * const httpServer = createServer(app);
+   *
+   * const pp = PPServer.attachTo(httpServer, { recovery: true });
+   *
+   * httpServer.listen(3009); // Both Express and PP on port 3009
+   * ```
+   */
+  static attachTo(
+    httpServer: import("http").Server | import("https").Server,
+    options: Omit<PPServerOptions, "port" | "server"> = {},
+  ): PPServer {
+    return new PPServer({ ...options, server: httpServer });
+  }
+
+  /**
+   * Inject a headless PPVirtualClient directly into the server pipeline,
+   * bypassing the WebSocket and HTTP layer. Useful for bots, testing, and SSR.
+   */
+  inject(client: PPVirtualClient): void {
+    const fakeWs = new EventEmitter() as any;
+    fakeWs.send = (data: Uint8Array) => client._receiveRaw(data);
+    fakeWs.close = () => client._handleClose();
+    fakeWs.on = fakeWs.addListener.bind(fakeWs); // Satisfy WebSocket event handlers
+
+    client._attachServer(fakeWs);
+
+    // Simulate standard connection
+    this.wss.emit("connection", fakeWs, {
+      headers: { "x-forwarded-for": "127.0.0.1", host: "localhost" },
+      url: "/?pp_is_virtual=1",
+      socket: { remoteAddress: "127.0.0.1" }
+    });
+  }
+
+  /**
+   * Internal: Handle cross-node broadcasts from the PPAdapter
+   */
+  private async _handleRemoteBroadcast(msg: PPMessage): Promise<void> {
+    if (msg.type !== "__pp_remote_emit" || !msg.payload) return;
+    const { rooms, exceptRooms, excludeId, type, emitPayload } = msg.payload as any;
+
+    const frame = encodeFrame(this.mode, { type, payload: emitPayload }, this.registry, this.encodeOpts);
+
+    // Filter out excluded rooms
+    const excludedIds = new Set<string>();
+    if (exceptRooms && exceptRooms.length > 0) {
+      for (const room of exceptRooms) {
+        const ids = await this.adapter.getClientsInRoom(room);
+        for (const id of ids) excludedIds.add(id);
+      }
+    }
+
+    if (rooms === null) {
+      // Broadcast to all clients
+      for (const id of this.clients.keys()) {
+        if (id === excludeId || excludedIds.has(id)) continue;
+        this.clients.get(id)?.sendRaw(frame);
+      }
+      return;
+    }
+
+    // specific rooms
+    const targetIds = new Set<string>();
+    for (const room of rooms) {
+      const ids = await this.adapter.getClientsInRoom(room);
+      for (const id of ids) {
+        if (!excludedIds.has(id)) targetIds.add(id);
+      }
+    }
+
+    for (const id of targetIds) {
+      if (id === excludeId) continue;
+      this.clients.get(id)?.sendRaw(frame);
+    }
+  }
+
   constructor(options: PPServerOptions) {
     this.mode = options.mode ?? "chat";
     this.registry = options.registry;
@@ -541,6 +644,11 @@ export class PPServer<
 
     this.namespaces.set("/", new PPNamespace("/"));
 
+    // Validate: either port or server must be provided
+    if (options.port === undefined && !options.server) {
+      throw new Error("PPServer: either 'port' or 'server' must be provided in options.");
+    }
+
     // Security: maxPayload limits frame size (default 1MB)
     const maxPayload = options.maxPayload ?? 1_048_576;
 
@@ -554,19 +662,25 @@ export class PPServer<
       }
       : undefined;
 
-    this.wss = new WebSocketServer({
-      port: options.port,
-      host: options.host,
-      maxPayload,
-      perMessageDeflate: false, // PP uses frame-level compression — disable WS-level to avoid conflict
-      ...(verifyClient ? { verifyClient } : {}),
-    });
-    this.log.info(`Server starting on port ${options.port} (maxPayload: ${maxPayload})`);
+    // Create WebSocketServer — either on its own port or attached to an existing HTTP server
+    const wssOptions = options.server
+      ? { server: options.server, maxPayload, perMessageDeflate: false as const, ...(verifyClient ? { verifyClient } : {}) }
+      : { port: options.port!, host: options.host, maxPayload, perMessageDeflate: false as const, ...(verifyClient ? { verifyClient } : {}) };
 
-    /* // Anonymous telemetry — fire-and-forget (opt-out: PAINDA_TELEMETRY_DISABLED=1)
-    if (!process.env.PAINDA_TELEMETRY_DISABLED) {
-      sendTelemetryPing().catch(() => {});
-    } */ this.wss.on("connection", async (ws: WebSocket, req) => {
+    this.wss = new WebSocketServer(wssOptions);
+
+    if (options.server) {
+      this.log.info(`Server attached to existing HTTP server (maxPayload: ${maxPayload})`);
+    } else {
+      this.log.info(`Server starting on port ${options.port} (maxPayload: ${maxPayload})`);
+    }
+
+    // Subscribe to multi-node adapter broadcasts
+    void this.adapter.subscribe("__pp_broadcast", (msg) => {
+      this._handleRemoteBroadcast(msg);
+    });
+
+    this.wss.on("connection", async (ws: WebSocket, req) => {
       // Security: IP-based connection rate limiting
       const ip = req.headers["x-forwarded-for"]?.toString().split(",")[0].trim()
         ?? req.socket.remoteAddress ?? "unknown";

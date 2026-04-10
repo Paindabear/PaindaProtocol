@@ -19,8 +19,10 @@ export * from "./common/plugin.js";
 export { ppMetricsPlugin } from "./common/metrics-plugin.js";
 export type { PPMetricsSnapshot, PPMetricsAPI, PPMetricsOptions } from "./common/metrics-plugin.js";
 export * from "./common/typed-room.js";
+export * from "./common/diff.js";
 export * from "./common/presence.js";
 export * from "./common/types.js";
+export * from "./common/virtual-client.js";
 
 // Node-only: PPServer
 export { PPServer } from "./server.js";

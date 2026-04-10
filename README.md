@@ -38,6 +38,7 @@
 | 🏷️ **Connection Tagging** | `client.setTag("role", "admin")` → `broadcastToTag()` |
 | 🔑 **Token Refresh** | `getToken()` callback on every reconnect |
 | 🎮 **Delta Engine** | State sync via diffs — 100x smaller payloads at 60 FPS |
+| 🤖 **Virtual Clients** | `server.inject(bot)` — Headless in-memory connections for AI & tests |
 | 🔇 **Volatile Messages** | Drop instead of queue for ephemeral data |
 | 👂 **Catch-All Listeners** | `onAny()` for debugging and metrics |
 | �️ **Deflate Compression** | Flag-based auto-compression on the wire |
@@ -125,7 +126,7 @@ server.on("connection", (client) => {
 
 ### 3. Client with Token Refresh & Room Sync
 ```typescript
-import { PPClient } from "@painda/core";
+import { PPClient } from "@painda/client";
 
 const client = new PPClient({
   url: "ws://localhost:3000",

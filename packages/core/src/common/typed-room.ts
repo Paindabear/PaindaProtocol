@@ -11,41 +11,9 @@
  */
 
 import type { PPMessage, PPClientSocket } from "./types.js";
-
-/** Simple recursive diff — returns only changed keys. */
-function diff(prev: any, next: any): any {
-    if (prev === next) return undefined;
-    if (typeof prev !== "object" || typeof next !== "object" || prev === null || next === null) {
-        return next;
-    }
-    if (Array.isArray(prev) || Array.isArray(next)) {
-        const a = prev as unknown[];
-        const b = next as unknown[];
-        if (a.length !== b.length || a.some((v, i) => v !== b[i])) return next;
-        return undefined;
-    }
-    const result: Record<string, unknown> = {};
-    let hasChanges = false;
-    const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
-    for (const key of allKeys) {
-        if (!(key in next)) {
-            result[key] = null; // deleted
-            hasChanges = true;
-        } else {
-            const d = diff(prev[key], next[key]);
-            if (d !== undefined) {
-                result[key] = d;
-                hasChanges = true;
-            }
-        }
-    }
-    return hasChanges ? result : undefined;
-}
+import { computeDiff, type PPDiffAlgorithm } from "./diff.js";
 
 type EventHandler = (...args: unknown[]) => void;
-
-/** Custom diff function type. */
-export type PPDiffAlgorithm = "shallow" | "deep" | ((prev: any, next: any) => any);
 
 /** Policy when room is full. */
 export type PPRoomFullPolicy = "reject" | "kick-oldest";
@@ -192,7 +160,7 @@ export class PPTypedRoom<TState extends object> {
     private tick(): void {
         if (this.clients.size === 0) return;
 
-        const d = this.computeDiff(this.lastState, this._state);
+        const d = computeDiff(this.lastState, this._state, this.opts.diffAlgorithm);
         if (d === undefined) return;
 
         this.lastState = structuredClone(this._state);
@@ -204,16 +172,6 @@ export class PPTypedRoom<TState extends object> {
         this.emit("tick", d);
     }
 
-    private computeDiff(prev: any, next: any): any {
-        if (typeof this.opts.diffAlgorithm === "function") {
-            return this.opts.diffAlgorithm(prev, next);
-        }
-        if (this.opts.diffAlgorithm === "shallow") {
-            return shallowDiff(prev, next);
-        }
-        return diff(prev, next);
-    }
-
     on(event: string, handler: EventHandler): void {
         if (!this.listeners.has(event)) this.listeners.set(event, new Set());
         this.listeners.get(event)!.add(handler);
@@ -223,22 +181,6 @@ export class PPTypedRoom<TState extends object> {
         const handlers = this.listeners.get(event);
         if (handlers) { for (const h of handlers) h(...args); }
     }
-}
-
-/** Shallow diff — only compares top-level keys. */
-function shallowDiff(prev: any, next: any): any {
-    if (prev === next) return undefined;
-    if (typeof prev !== "object" || typeof next !== "object") return next;
-    const result: Record<string, unknown> = {};
-    let hasChanges = false;
-    const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
-    for (const key of allKeys) {
-        if (prev[key] !== next[key]) {
-            result[key] = next[key] ?? null;
-            hasChanges = true;
-        }
-    }
-    return hasChanges ? result : undefined;
 }
 
 /**
